@@ -18,3 +18,4 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_AIME_HELLO_WORLD }}
           channelId: live
           projectId: aime-hello-world
+          entryPoint: frontend
