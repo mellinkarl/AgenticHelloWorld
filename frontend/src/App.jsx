@@ -17,7 +17,7 @@ export default function App() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Upload Manuscript</h1>
+      <h1>Upload Manuscript:</h1>
       <input type="file" onChange={(e) => setFile(e.target.files[0])} />
       <button onClick={upload}>Upload</button>
       <p>{result}</p>
