@@ -35,7 +35,7 @@ export default function App() {
       <h1>Upload Manuscript</h1>
       <input type="file" onChange={(e) => setFile(e.target.files[0])} />
       <button onClick={upload}>Upload</button>
-      {gcsUri && (
+      {gcsURI && (
         <>
           <h2>Ask About the File</h2>
           <input
