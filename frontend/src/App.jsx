@@ -2,7 +2,9 @@ import { useState } from "react";
 
 export default function App() {
   const [file, setFile] = useState(null);
-  const [result, setResult] = useState("");
+  const [gcsURI, setGcsURI] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [response, setResponse] = useState("");
 
   const upload = async () => {
     const formData = new FormData();
@@ -12,7 +14,20 @@ export default function App() {
       body: formData,
     });
     const data = await res.json();
-    setResult(data.uri);
+    setGcsURI(data.uri);
+  };
+
+  const ask = async () => {
+    const res = await fetch(process.env.REACT_APP_INGESTION_URL + "/query", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prompt, gcs_uri: gcsURI }),
+    });
+
+    const data = await res.json();
+    setResponse(data.response);
   };
 
   return (
@@ -20,7 +35,20 @@ export default function App() {
       <h1>Upload Manuscript</h1>
       <input type="file" onChange={(e) => setFile(e.target.files[0])} />
       <button onClick={upload}>Upload</button>
-      <p>{result}</p>
+      {gcsUri && (
+        <>
+          <h2>Ask About the File</h2>
+          <input
+            type="text"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="Ask a question..."
+            style={{ width: "300px" }}
+          />
+          <button onClick={ask}>Ask</button>
+          <p><strong>Response:</strong> {response}</p>
+        </>
+      )}
     </div>
   );
 }

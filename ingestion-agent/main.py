@@ -45,7 +45,15 @@ async def ingest(file: UploadFile = File(...)):
 async def query(request: Request):
     data = await request.json()
     prompt = data.get("prompt")
+    gcs_uri = data.get("gcs_uri")
     if not prompt:
-        return {"error": "Prompt is required"}
-    response = llm.invoke(prompt)
+        return {"error": "Prompt and URI required"}
+    
+    # Extract the file name from the GCS URI
+    blob_name = gcs_uri.replace(f"gs://{bucket_name}/", "")
+    blob = bucket.blob(blob_name)
+    file_contents = blob.download_as_text()
+
+    full_prompt = f"{file_contents}\n\nQuestion: {prompt}"
+    response = llm.invoke(full_prompt)
     return {"response": response.text}
