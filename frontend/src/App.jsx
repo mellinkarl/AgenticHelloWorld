@@ -13,6 +13,10 @@ export default function App() {
       method: "POST",
       body: formData,
     });
+    console.log(
+      "Uploading to",
+      process.env.REACT_APP_INGESTION_URL + "/ingest"
+    );
     const data = await res.json();
     setGcsURI(data.uri);
   };
@@ -46,7 +50,9 @@ export default function App() {
             style={{ width: "300px" }}
           />
           <button onClick={ask}>Ask</button>
-          <p><strong>Response:</strong> {response}</p>
+          <p>
+            <strong>Response:</strong> {response}
+          </p>
         </>
       )}
     </div>
