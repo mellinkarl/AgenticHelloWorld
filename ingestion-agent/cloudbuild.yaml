@@ -1,5 +1,5 @@
 steps:
-  - name: 'gcr.io/cloud-builders/gcloud'
+  - name: "gcr.io/cloud-builders/gcloud"
     entrypoint: bash
     args:
       - -c
@@ -7,7 +7,7 @@ steps:
         gcloud run deploy ingestion-agent \
           --source . \
           --region us-west1 \
-          --service-account amie-agent-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com \
+          --service-account amie-agent-sa@aime-hello-world.iam.gserviceaccount.com \
           --set-env-vars BUCKET_NAME=amie-manuscripts \
           --allow-unauthenticated
 timeout: 900s

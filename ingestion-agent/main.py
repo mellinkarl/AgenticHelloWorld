@@ -19,16 +19,8 @@ bucket_name = os.environ.get("BUCKET_NAME")
 storage_client = storage.Client()
 bucket = storage_client.bucket(bucket_name)
 
-# Initialize Vertex AI
-project_id = os.environ.get("GCP_PROJET_ID")
-region = os.environ.get("GCP_REGION")
-vertexai.init(project=project_id, location=region)
 
-llm = ChatVertexAI(
-    model="gemini-1.5-pro",
-    temperature=0.7,
-    max_output_tokens=512,
-)
+
 
 @app.get("/")
 def health():
@@ -43,12 +35,23 @@ async def ingest(file: UploadFile = File(...)):
 
 @app.post("/query")
 async def query(request: Request):
+    
     data = await request.json()
     prompt = data.get("prompt")
     gcs_uri = data.get("gcs_uri")
     if not prompt:
         return {"error": "Prompt and URI required"}
     
+    # Initialize Vertex AI
+    project_id = os.environ.get("GCP_PROJECT_ID")
+    region = os.environ.get("GCP_REGION")
+    vertexai.init(project=project_id, location=region)
+    llm = ChatVertexAI(
+        model="gemini-1.5-pro",
+        temperature=0.7,
+        max_output_tokens=512,
+    )
+
     # Extract the file name from the GCS URI
     blob_name = gcs_uri.replace(f"gs://{bucket_name}/", "")
     blob = bucket.blob(blob_name)
@@ -57,3 +60,4 @@ async def query(request: Request):
     full_prompt = f"{file_contents}\n\nQuestion: {prompt}"
     response = llm.invoke(full_prompt)
     return {"response": response.text}
+
