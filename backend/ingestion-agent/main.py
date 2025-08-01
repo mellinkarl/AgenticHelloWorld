@@ -70,7 +70,7 @@ async def query(request: Request):
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     # Print error for logging/debugging
-    print(f"Unhandled exception: {exc}")
+    print(f"Unhandled_exception: {exc}")
 
     return JSONResponse(
         status_code=500,
