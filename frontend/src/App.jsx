@@ -17,9 +17,14 @@ export default function App() {
       method: "POST",
       body: formData,
     });
-    
+
     const data = await res.json();
-    setGcsURI(data.uri);
+    console.log("Upload response:", data); // 👈 Add this
+    if (data.uri) {
+      setGcsURI(data.uri);
+    } else {
+      alert("Upload failed: " + data.error); // 👈 Optional error alert
+    }
   };
 
   const ask = async () => {
