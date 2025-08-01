@@ -69,7 +69,8 @@ async def query(request: Request):
                 file_contents += page.get_text()
             print(f"File contents: {file_contents[:100]}...")  # Log first 100 chars for debugging
 
-        full_prompt = f"{file_contents}\n\nQuestion: {prompt}"
+        full_prompt = f"{file_contents}\n\nQuestion: Summarize the resume."
+        print(f"Full prompt: {full_prompt[:200]}...")  # Log first 100 chars for debugging
         response = llm.invoke(full_prompt)
         print(f"LLM response: {response.text()}")  # Log the response for debugging
         return {"response": response.text()}
