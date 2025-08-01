@@ -7,16 +7,17 @@ export default function App() {
   const [response, setResponse] = useState("");
 
   const upload = async () => {
+    console.log(
+      "Uploading to",
+      process.env.REACT_APP_INGESTION_URL + "/ingest"
+    );
     const formData = new FormData();
     formData.append("file", file);
     const res = await fetch(process.env.REACT_APP_INGESTION_URL + "/ingest", {
       method: "POST",
       body: formData,
     });
-    console.log(
-      "Uploading to",
-      process.env.REACT_APP_INGESTION_URL + "/ingest"
-    );
+    
     const data = await res.json();
     setGcsURI(data.uri);
   };
