@@ -53,7 +53,7 @@ async def query(request: Request):
         region = os.environ.get("GCP_REGION")
         vertexai.init(project=project_id, location=region)
         llm = ChatVertexAI(
-            model="gemini-1.5-pro",
+            model="gemini-2.5-pro",
             temperature=0.7,
             max_output_tokens=512,
         )
