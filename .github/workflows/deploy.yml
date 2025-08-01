@@ -37,10 +37,9 @@ jobs:
             --allow-unauthenticated \
             --build-service-account=projects/aime-hello-world/serviceAccounts/cloudbuild@aime-hello-world.iam.gserviceaccount.com \
             --service-account amie-agent-sa@aime-hello-world.iam.gserviceaccount.com \
-            --set-env-vars BUCKET_NAME=amie-manuscripts,GCP_PROJECT_ID=aime-hello-world,GCP_REGION=us-west1
+            --set-env-vars BUCKET_NAME=aime-manuscripts,GCP_PROJECT_ID=aime-hello-world,GCP_REGION=us-west1
 
   deploy-frontend:
-    needs: deploy-backend
     runs-on: ubuntu-latest
     defaults:
       run:
