@@ -71,8 +71,8 @@ async def query(request: Request):
 
         full_prompt = f"{file_contents}\n\nQuestion: {prompt}"
         response = llm.invoke(full_prompt)
-        print(f"LLM response: {response.text}")  # Log the response for debugging
-        return {"response": response.text}
+        print(f"LLM response: {response.text()}")  # Log the response for debugging
+        return {"response": response.text()}
     except Exception as e:
         print(f"Error during query: {e}")
         return {"error": str(e)}
