@@ -4,3 +4,4 @@ google-cloud-storage
 python-multipart
 langchain-google-vertexai
 vertexai
+pymupdf

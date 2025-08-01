@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from langchain_google_vertexai import ChatVertexAI
 import vertexai
+import fitz
 
 app = FastAPI()
 
@@ -60,8 +61,13 @@ async def query(request: Request):
         # Extract the file name from the GCS URI
         blob_name = gcs_uri.replace(f"gs://{bucket_name}/", "")
         blob = bucket.blob(blob_name)
-        file_contents = blob.download_as_text()
-        print(f"File contents: {file_contents[:100]}...")  # Log first 100 chars for debugging
+        doc_bytes = blob.download_as_bytes()
+
+        with fitz.open(stream=doc_bytes, filetype="pdf") as doc:
+            file_contents = ""
+            for page in doc:
+                file_contents += page.get_text()
+            print(f"File contents: {file_contents[:100]}...")  # Log first 100 chars for debugging
 
         full_prompt = f"{file_contents}\n\nQuestion: {prompt}"
         response = llm.invoke(full_prompt)
@@ -79,7 +85,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
         content={"error": "Internal server error"},
-        headers={"Access-Control-Allow-Origin": "*",  # 👈 CORS headers here
+        headers={"Access-Control-Allow-Origin": "*",
                  "Access-Control-Allow-Methods": "*",
                  "Access-Control-Allow-Headers": "*"},
     )
