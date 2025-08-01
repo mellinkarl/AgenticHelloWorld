@@ -27,6 +27,9 @@ jobs:
         env:
           REACT_APP_INGESTION_URL: ${{ secrets.REACT_APP_INGESTION_URL }}
 
+      - name: Show built bundle env var usage
+        run: grep -r REACT_APP_INGESTION_URL build/static
+
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
