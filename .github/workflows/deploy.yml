@@ -26,6 +26,9 @@ jobs:
         with:
           project_id: aime-hello-world
 
+      - name: Who am I
+        run: gcloud auth list && gcloud config list account
+
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy ingestion-agent \
