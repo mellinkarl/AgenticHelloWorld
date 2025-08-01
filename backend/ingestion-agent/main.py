@@ -55,7 +55,7 @@ async def query(request: Request):
         llm = ChatVertexAI(
             model="gemini-2.5-pro",
             temperature=0.7,
-            max_output_tokens=512,
+            max_output_tokens=4096,
         )
 
         # Extract the file name from the GCS URI
