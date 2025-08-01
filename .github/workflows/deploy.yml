@@ -1,4 +1,4 @@
-name: Deploy to Firebase Hosting on merge
+name: Deploy Frontend and Backend
 
 on:
   push:
@@ -6,31 +6,52 @@ on:
       - main
 
 jobs:
-  build_and_deploy:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate with Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: aime-hello-world
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ingestion-agent \
+            --source backend \
+            --region us-west1 \
+            --allow-unauthenticated \
+            --service-account aime-agent-sa@aime-hello-world.iam.gserviceaccount.com \
+            --set-env-vars BUCKET_NAME=amie-manuscripts,GCP_PROJECT_ID=aime-hello-world,GCP_REGION=us-west1
+
+  deploy-frontend:
+    needs: deploy-backend
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Install dependencies
         run: npm install
-      - name: Print env var for debugging
-        run: echo "REACT_APP_INGESTION_URL=$REACT_APP_INGESTION_URL"
-        env:
-          REACT_APP_INGESTION_URL: ${{ secrets.REACT_APP_INGESTION_URL }}
 
-      - name: Build React app with env var
+      - name: Build with env
         run: npm run build
         env:
           REACT_APP_INGESTION_URL: ${{ secrets.REACT_APP_INGESTION_URL }}
 
-      - name: Show built bundle env var usage
-        run: grep -r REACT_APP_INGESTION_URL build/static
-
-      - uses: FirebaseExtended/action-hosting-deploy@v0
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_AIME_HELLO_WORLD }}

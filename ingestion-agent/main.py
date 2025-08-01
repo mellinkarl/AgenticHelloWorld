@@ -2,6 +2,7 @@ from fastapi import FastAPI, UploadFile, File, Request
 from google.cloud import storage
 import uuid, os
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from langchain_google_vertexai import ChatVertexAI
 import vertexai
 
@@ -65,3 +66,16 @@ async def query(request: Request):
         return {"response": response.text}
     except Exception as e:
         return {"error": str(e)}
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    # Print error for logging/debugging
+    print(f"Unhandled exception: {exc}")
+
+    return JSONResponse(
+        status_code=500,
+        content={"error": "Internal server error"},
+        headers={"Access-Control-Allow-Origin": "*",  # 👈 CORS headers here
+                 "Access-Control-Allow-Methods": "*",
+                 "Access-Control-Allow-Headers": "*"},
+    )
