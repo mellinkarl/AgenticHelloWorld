@@ -43,7 +43,8 @@ async def query(request: Request):
         data = await request.json()
         prompt = data.get("prompt")
         gcs_uri = data.get("gcs_uri")
-        if not prompt:
+        print(f"Received prompt: {prompt}, GCS URI: {gcs_uri}")
+        if not prompt or not gcs_uri:
             return {"error": "Prompt and URI required"}
         
         # Initialize Vertex AI
@@ -60,11 +61,14 @@ async def query(request: Request):
         blob_name = gcs_uri.replace(f"gs://{bucket_name}/", "")
         blob = bucket.blob(blob_name)
         file_contents = blob.download_as_text()
+        print(f"File contents: {file_contents[:100]}...")  # Log first 100 chars for debugging
 
         full_prompt = f"{file_contents}\n\nQuestion: {prompt}"
         response = llm.invoke(full_prompt)
+        print(f"LLM response: {response.text}")  # Log the response for debugging
         return {"response": response.text}
     except Exception as e:
+        print(f"Error during query: {e}")
         return {"error": str(e)}
 
 @app.exception_handler(Exception)

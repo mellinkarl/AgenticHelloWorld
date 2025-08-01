@@ -19,11 +19,11 @@ export default function App() {
     });
 
     const data = await res.json();
-    console.log("Upload response:", data); // 👈 Add this
+    console.log("Upload response:", data); 
     if (data.uri) {
       setGcsURI(data.uri);
     } else {
-      alert("Upload failed: " + data.error); // 👈 Optional error alert
+      alert("Upload failed: " + data.error);
     }
   };
 
@@ -37,6 +37,7 @@ export default function App() {
     });
 
     const data = await res.json();
+    console.log("Query response:", data);
     setResponse(data.response);
   };
 
