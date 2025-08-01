@@ -19,7 +19,7 @@ export default function App() {
     });
 
     const data = await res.json();
-    console.log("Upload response:", data); 
+    console.log("Upload response:", data);
     if (data.uri) {
       setGcsURI(data.uri);
     } else {
@@ -57,9 +57,11 @@ export default function App() {
             style={{ width: "300px" }}
           />
           <button onClick={ask}>Ask</button>
-          <p>
-            <strong>Response:</strong> {response}
-          </p>
+          {response && typeof response === "string" && (
+            <p>
+              <strong>Response:</strong> {response}
+            </p>
+          )}
         </>
       )}
     </div>
