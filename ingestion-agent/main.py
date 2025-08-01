@@ -28,36 +28,40 @@ def health():
 
 @app.post("/ingest")
 async def ingest(file: UploadFile = File(...)):
-    blob_name = f"{uuid.uuid4()}-{file.filename}"
-    blob = bucket.blob(blob_name)
-    blob.upload_from_file(file.file, rewind=True)
-    return {"uri": f"gs://{bucket_name}/{blob_name}"}
+    try:
+        blob_name = f"{uuid.uuid4()}-{file.filename}"
+        blob = bucket.blob(blob_name)
+        blob.upload_from_file(file.file, rewind=True)
+        return {"uri": f"gs://{bucket_name}/{blob_name}"}
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.post("/query")
 async def query(request: Request):
-    
-    data = await request.json()
-    prompt = data.get("prompt")
-    gcs_uri = data.get("gcs_uri")
-    if not prompt:
-        return {"error": "Prompt and URI required"}
-    
-    # Initialize Vertex AI
-    project_id = os.environ.get("GCP_PROJECT_ID")
-    region = os.environ.get("GCP_REGION")
-    vertexai.init(project=project_id, location=region)
-    llm = ChatVertexAI(
-        model="gemini-1.5-pro",
-        temperature=0.7,
-        max_output_tokens=512,
-    )
+    try:
+        data = await request.json()
+        prompt = data.get("prompt")
+        gcs_uri = data.get("gcs_uri")
+        if not prompt:
+            return {"error": "Prompt and URI required"}
+        
+        # Initialize Vertex AI
+        project_id = os.environ.get("GCP_PROJECT_ID")
+        region = os.environ.get("GCP_REGION")
+        vertexai.init(project=project_id, location=region)
+        llm = ChatVertexAI(
+            model="gemini-1.5-pro",
+            temperature=0.7,
+            max_output_tokens=512,
+        )
 
-    # Extract the file name from the GCS URI
-    blob_name = gcs_uri.replace(f"gs://{bucket_name}/", "")
-    blob = bucket.blob(blob_name)
-    file_contents = blob.download_as_text()
+        # Extract the file name from the GCS URI
+        blob_name = gcs_uri.replace(f"gs://{bucket_name}/", "")
+        blob = bucket.blob(blob_name)
+        file_contents = blob.download_as_text()
 
-    full_prompt = f"{file_contents}\n\nQuestion: {prompt}"
-    response = llm.invoke(full_prompt)
-    return {"response": response.text}
-
+        full_prompt = f"{file_contents}\n\nQuestion: {prompt}"
+        response = llm.invoke(full_prompt)
+        return {"response": response.text}
+    except Exception as e:
+        return {"error": str(e)}

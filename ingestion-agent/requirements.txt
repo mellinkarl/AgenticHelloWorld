@@ -2,3 +2,5 @@ fastapi
 uvicorn[standard]
 google-cloud-storage
 python-multipart
+langchain-google-vertexai
+vertexai
