@@ -33,7 +33,7 @@ jobs:
             --region us-west1 \
             --allow-unauthenticated \
             --service-account aime-agent-sa@aime-hello-world.iam.gserviceaccount.com \
-            --build-service-account=839195423256@cloudbuild.gserviceaccount.com \
+            --build-service-account=projects/aime-hello-world/serviceAccounts/839195423256@cloudbuild.gserviceaccount.com \
             --set-env-vars BUCKET_NAME=amie-manuscripts,GCP_PROJECT_ID=aime-hello-world,GCP_REGION=us-west1
 
   deploy-frontend:
