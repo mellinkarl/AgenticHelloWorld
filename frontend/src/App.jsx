@@ -2,6 +2,7 @@ import { useState } from "react";
 
 export default function App() {
   const [file, setFile] = useState(null);
+  const [resp, setResp] = useState(null);
 
   const upload = async () => {
     console.log(
@@ -16,12 +17,10 @@ export default function App() {
     });
 
     const data = await res.json();
-    console.log("Upload response:", data);
-    if (data.uri) {
-      setGcsURI(data.uri);
-    } else {
-      alert("Upload failed: " + data.error);
+    if (!res.ok) {
+      return alert(data.error || "Upload failed");
     }
+    setResp(data);
   };
 
   return (
@@ -29,6 +28,19 @@ export default function App() {
       <h1>Upload Manuscript</h1>
       <input type="file" onChange={(e) => setFile(e.target.files[0])} />
       <button onClick={upload}>Upload</button>
+
+      {resp && (
+        <pre
+          style={{
+            marginTop: 16,
+            background: "#111",
+            color: "#eee",
+            padding: 12,
+          }}
+        >
+          {JSON.stringify(resp, null, 2)}
+        </pre>
+      )}
     </div>
   );
 }
