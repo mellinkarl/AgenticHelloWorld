@@ -1,0 +1,5 @@
+langchain==0.3.27
+langchain-core==0.3.72
+langchain-google-vertexai==2.0.28
+google-cloud-aiplatform==1.107.0
+pydantic>=2.7,<3

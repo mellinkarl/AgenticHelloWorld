@@ -44,7 +44,7 @@ __MACOSX/
 *.log
 *.tmp.md
 
-# === Others you might need ===
+# === Others ===
 *.bak
 *.swp
 *.swo
@@ -55,3 +55,6 @@ __MACOSX/
 
 # === JupyterLab specific ===
 .lab/
+
+# === Keys ===
+.keys/
