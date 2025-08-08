@@ -9,7 +9,7 @@ bucket_name = os.environ.get("BUCKET_NAME")
 storage_client = storage.Client()
 bucket = storage_client.bucket(bucket_name)
 
-SYSTEM_PROMPT = """You are an Invention Detection and Classification Agent. 
+SYSTEM_PROMPT = """You are a U.S. patent eligibility classifier. 
 Your role is to determine whether a provided document describes a patent-eligible invention under United States law, specifically 35 U.S.C. § 101.
 
 ---
