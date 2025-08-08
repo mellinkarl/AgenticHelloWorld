@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - "backend/ingestion-agent/**"
+      - "backend/**"
       - "frontend/**"
       - ".github/workflows/deploy.yml"
 
@@ -26,13 +26,10 @@ jobs:
         with:
           project_id: aime-hello-world
 
-      - name: Who am I
-        run: gcloud auth list && gcloud config list account
-
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy ingestion-agent \
-            --source backend/ingestion-agent \
+            --source backend \
             --region us-west1 \
             --allow-unauthenticated \
             --build-service-account=projects/aime-hello-world/serviceAccounts/cloudbuild@aime-hello-world.iam.gserviceaccount.com \
