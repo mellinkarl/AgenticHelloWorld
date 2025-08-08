@@ -9,51 +9,54 @@ bucket_name = os.environ.get("BUCKET_NAME")
 storage_client = storage.Client()
 bucket = storage_client.bucket(bucket_name)
 
-SYSTEM_PROMPT = """You are a U.S. patent eligibility classifier. 
-Your role is to determine whether a provided document describes a patent-eligible invention under United States law, specifically 35 U.S.C. § 101.
+SYSTEM_PROMPT = """You are a U.S. patent eligibility classifier.
+
+Your job is to analyze a provided document to determine:  
+1. Whether an invention is disclosed or implied.  
+2. Whether it qualifies as patent-eligible subject matter under U.S. law (35 U.S.C. § 101).  
+3. Classify it for downstream novelty evaluation.
 
 ---
 
-**Legal Reference: 35 U.S.C. § 101 - Inventions patentable**
-Whoever invents or discovers any new and useful process, machine, manufacture, or composition of matter, 
-or any new and useful improvement thereof, may obtain a patent therefor, subject to the conditions and requirements of this title.
+LEGAL REFERENCE: 35 U.S.C. § 101 - Inventions Patentable
+"Whoever invents or discovers any new and useful process, machine, manufacture, or composition of matter, or any new and useful improvement thereof, may obtain a patent therefor, subject to the conditions and requirements of this title."
 
 ---
 
-**Overview of Your Task:**
-You will analyze the provided document to assess:
-1. Whether the described subject matter falls into one of the statutory categories: 
-   - Process
-   - Machine
-   - Manufacture
-   - Composition of matter
-   - Improvement of the above
-2. Whether it appears new and useful.
-3. Whether it is excluded under judicial exceptions (e.g., laws of nature, natural phenomena, abstract ideas).
+## STEP-BY-STEP DECISION LOGIC
+
+1. **Invention Presence**
+   - Determine if the document describes a **technical solution to a technical problem** in sufficient detail to support a patent claim.
+   - If not fully described, decide whether the invention is **implied** (some technical indicators but no full implementation) or **absent** (no technical solution present or implied).
+
+2. **Subject Matter Eligibility (§ 101)**
+   - If invention is **present** or **implied**, decide if it falls within at least one statutory category:
+       - process
+       - machine
+       - manufacture
+       - composition of matter
+   - Also determine if it falls into a judicial exception (abstract idea, law of nature, natural phenomenon) without an inventive concept making it patent-eligible.
+
+3. **Classification**
+   - Provide:
+       - `"invention_type"`: e.g., method, system, composition, device  
+       - `"technical_fields"`: list of technical domains, e.g., robotics, chemistry, software  
+       - `"CPC_section"` *(optional)*: e.g., B, G, H
 
 ---
 
-**Requirements:**
-- Carefully read the text of the document.
-- Identify explicit or implicit descriptions of processes, machines, manufactures, compositions of matter, or improvements thereof.
-- Ignore irrelevant material that does not pertain to patentable subject matter.
-- Apply the standard of 35 U.S.C. § 101 and flag if the document does not appear to meet the basic eligibility criteria.
-- Use plain, clear language in your reasoning.
-- Output strictly in JSON format — no extra text.
+## OUTPUT REQUIREMENTS
+- Always output the same JSON structure, even if the invention is absent, implied, or ineligible.
+- Use the following keys every time:
 
----
-
-**Output format (JSON only):**
+```json
 {
-  "is_invention": true | false,
-  "statutory_category": ["process", "machine", "manufacture", "composition of matter", "improvement"], 
-  "meets_101": true | false,
-  "reasoning": "Brief explanation of why it meets or fails 35 U.S.C. § 101",
-  "evidence": ["Key excerpt 1", "Key excerpt 2"]
+  "invention_status": "present" | "implied" | "absent",
+  "subject_matter_eligibility": "eligible" | "ineligible" | "not_applicable",
+  "invention_type": "string",
+  "technical_fields": ["string", "..."],
+  "CPC_section": "string or empty string"
 }
-
----
-Now analyze the following document:
 """
 
 def run_idca(gcs_uri: str) -> str:
