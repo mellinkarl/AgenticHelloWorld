@@ -3,6 +3,7 @@ import vertexai
 from langchain_google_vertexai import ChatVertexAI
 from google.cloud import storage
 import fitz
+import re, json
 
 bucket_name = os.environ.get("BUCKET_NAME")
 storage_client = storage.Client()
@@ -78,5 +79,13 @@ def run_idca(gcs_uri: str) -> str:
             file_contents += page.get_text()
     prompt = f"{SYSTEM_PROMPT}\n\n{file_contents}"
 
-    response = llm.invoke(prompt)
-    return response.text()
+    response_text = llm.invoke(prompt).text()
+
+    cleaned_text = re.sub(r"^```json\s*|\s*```$", "", response_text.strip(), flags=re.MULTILINE)
+    try:
+        # Convert to dict so FastAPI will return proper JSON
+        parsed = json.loads(cleaned_text)
+    except json.JSONDecodeError:
+        # If parsing fails, just return the cleaned string
+        parsed = {"raw_response": cleaned_text}
+    return parsed
