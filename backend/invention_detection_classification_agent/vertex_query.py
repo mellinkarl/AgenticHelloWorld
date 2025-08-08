@@ -64,6 +64,7 @@ LEGAL REFERENCE: 35 U.S.C. § 101 – Inventions Patentable
   "invention_type": "string",
   "technical_fields": ["string", "..."],
   "CPC_section": "string"
+  "reasoning": "string"
 }
 
 """
