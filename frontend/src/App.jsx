@@ -2,9 +2,7 @@ import { useState } from "react";
 
 export default function App() {
   const [file, setFile] = useState(null);
-  const [gcsURI, setGcsURI] = useState("");
-  const [prompt, setPrompt] = useState("");
-  const [response, setResponse] = useState("");
+  const [resp, setResp] = useState(null);
 
   const upload = async () => {
     console.log(
@@ -19,26 +17,10 @@ export default function App() {
     });
 
     const data = await res.json();
-    console.log("Upload response:", data);
-    if (data.uri) {
-      setGcsURI(data.uri);
-    } else {
-      alert("Upload failed: " + data.error);
+    if (!res.ok) {
+      return alert(data.error || "Upload failed");
     }
-  };
-
-  const ask = async () => {
-    const res = await fetch(process.env.REACT_APP_INGESTION_URL + "/query", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ prompt, gcs_uri: gcsURI }),
-    });
-
-    const data = await res.json();
-    console.log("Query response:", data);
-    setResponse(data.response);
+    setResp(data);
   };
 
   return (
@@ -46,23 +28,18 @@ export default function App() {
       <h1>Upload Manuscript</h1>
       <input type="file" onChange={(e) => setFile(e.target.files[0])} />
       <button onClick={upload}>Upload</button>
-      {gcsURI && (
-        <>
-          <h2>Ask About the File</h2>
-          <input
-            type="text"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Ask a question..."
-            style={{ width: "300px" }}
-          />
-          <button onClick={ask}>Ask</button>
-          {response && typeof response === "string" && (
-            <p>
-              <strong>Response:</strong> {response}
-            </p>
-          )}
-        </>
+
+      {resp && (
+        <pre
+          style={{
+            marginTop: 16,
+            background: "#111",
+            color: "#eee",
+            padding: 12,
+          }}
+        >
+          {JSON.stringify(resp, null, 2)}
+        </pre>
       )}
     </div>
   );

@@ -4,10 +4,16 @@ on:
   push:
     branches:
       - main
+      - feature/**
+      - hotfix/**
+      - bugfix/**
+      - release/**
+      - "**" # catch all branches
     paths:
-      - "backend/ingestion-agent/**"
+      - "backend/**"
       - "frontend/**"
       - ".github/workflows/deploy.yml"
+  workflow_dispatch: {} # allow manual runs from the Actions tab
 
 jobs:
   deploy-backend:
@@ -26,25 +32,44 @@ jobs:
         with:
           project_id: aime-hello-world
 
-      - name: Who am I
-        run: gcloud auth list && gcloud config list account
-
-      - name: Deploy to Cloud Run
+      - name: Deploy to Cloud Run (preview per branch)
+        env:
+          PROJECT_ID: aime-hello-world
+          REGION: us-west1
+          RUNTIME_SA: amie-agent-sa@aime-hello-world.iam.gserviceaccount.com
+          BUILD_SA: projects/aime-hello-world/serviceAccounts/cloudbuild@aime-hello-world.iam.gserviceaccount.com
+          BUCKET_NAME: aime-manuscripts
         run: |
-          gcloud run deploy ingestion-agent \
-            --source backend/ingestion-agent \
-            --region us-west1 \
+          BRANCH="${GITHUB_REF_NAME}"
+
+          # Make branch safe for Cloud Run service names:
+          # - lowercase, numbers, hyphens only
+          # - max 63 chars
+          SAFE_BRANCH=$(echo "$BRANCH" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')
+          SAFE_BRANCH=$(echo "$SAFE_BRANCH" | sed 's/^-*//; s/-*$//')  # trim leading/trailing -
+          SAFE_BRANCH=$(echo "$SAFE_BRANCH" | cut -c1-40)              # keep room for prefix
+
+          if [ "$BRANCH" = "main" ]; then
+            SERVICE="ingestion-agent"
+          else
+            SERVICE="ingestion-agent-${SAFE_BRANCH}"
+          fi
+
+          echo "Deploying branch '$BRANCH' to service '$SERVICE' in $REGION"
+
+          gcloud run deploy "$SERVICE" \
+            --source backend \
+            --region "$REGION" \
             --allow-unauthenticated \
-            --build-service-account=projects/aime-hello-world/serviceAccounts/cloudbuild@aime-hello-world.iam.gserviceaccount.com \
-            --service-account amie-agent-sa@aime-hello-world.iam.gserviceaccount.com \
-            --set-env-vars BUCKET_NAME=aime-manuscripts,GCP_PROJECT_ID=aime-hello-world,GCP_REGION=us-west1
+            --build-service-account "$BUILD_SA" \
+            --service-account "$RUNTIME_SA" \
+            --set-env-vars BUCKET_NAME="$BUCKET_NAME",GCP_PROJECT_ID="$PROJECT_ID",GCP_REGION="$REGION"
 
   deploy-frontend:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -55,7 +80,7 @@ jobs:
       - name: Build with env
         run: npm run build
         env:
-          REACT_APP_INGESTION_URL: ${{ secrets.REACT_APP_INGESTION_URL }}
+          REACT_APP_INGESTION_URL: ${{ secrets.REACT_APP_INGESTION_URL }} # stays pointing at prod unless you set per-branch URLs
 
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
