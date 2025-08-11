@@ -1,0 +1,14 @@
+langchain==0.3.27
+langchain-core==0.3.72
+langchain-google-vertexai==2.0.28
+
+langgraph==0.6.4
+langgraph-checkpoint==2.1.1
+langgraph-prebuilt==0.6.4
+langgraph-sdk==0.2.0
+
+pydantic==2.11.7
+vertexai==1.43.0
+google-cloud-aiplatform==1.108.0
+google-auth==2.40.3
+PyYAML==6.0.2
