@@ -1,3 +1,11 @@
+'''
+# PASS path (exact OK.)
+python -m src.runner.run_graph_date --input "Say exactly: OK."
+
+# Force REFINE path → output must differ from draft; if unchanged by LLM, date is appended
+python -m src.runner.run_graph_date --input "Say: hi" --force_refine
+'''
+
 from __future__ import annotations
 import argparse, json
 from typing import Dict, Any
