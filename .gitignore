@@ -1,2 +1,60 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.log
+*.pkl
+*.sqlite3
+*.db
+.venv/
+env/
+venv/
+pip-wheel-metadata/
+.ipynb_checkpoints/
+
+# === Frontend (React/Vue/Next.js/etc) ===
+node_modules/
+dist/
+build/
+.cache/
+.next/
+.out/
+.vscode/
 .env
+.env.*.local
+
+# === macOS ===
 .DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+.VolumeIcon.icns
+.fseventsd
+__MACOSX/
+
+# === Logs and temp files ===
+*.log
+*.tmp.md
+
+# === Others ===
+*.bak
+*.swp
+*.swo
+*.orig
+*.idea/
+*.iml
+*.code-workspace
+
+# === JupyterLab specific ===
+.lab/
+
+# === Keys ===
+.keys/

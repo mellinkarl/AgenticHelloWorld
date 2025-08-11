@@ -1,0 +1,21 @@
+# === Global GCP settings ===
+project: aime-hello-world
+location: us-central1
+
+# === Local credentials strategy (ignored when USE_ADC=true) ===
+# Put your key under src/.keys/ and set the filename here.
+credentials_name: aime-hello-world-2cd68fc662f2.json
+
+# === Global LLM defaults; agents can override below ===
+model_name: gemini-2.0-flash
+temperature: 0.2
+max_output_tokens: 512
+response_mime_type: text/plain
+
+# === Optional per-agent overrides ===
+agents:
+  runner:
+    temperature: 0.1
+  refiner:
+    model: gemini-2.0-flash
+    temperature: 0.3
