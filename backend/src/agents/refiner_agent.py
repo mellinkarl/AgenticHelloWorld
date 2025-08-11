@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Any
+from typing import Mapping, Dict, Any
 
 from ..prompts.refiner_prompt import REFINER_PROMPT
 
@@ -12,9 +12,8 @@ class RefinerAgent:
         self.chain = REFINER_PROMPT | llm
         self.requirements = requirements
 
-    def invoke(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    def invoke(self, state: Mapping[str, Any]) -> Dict[str, Any]:
         draft = state.get("draft", "")
         refined = self.chain.invoke({"draft_text": draft, "requirements": self.requirements})
-        # LangChain returns an AIMessage for chat models; `.content` is the text.
         text = getattr(refined, "content", refined)
-        return {"text": text}
+        return {"text": text.strip()}

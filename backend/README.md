@@ -1,78 +1,160 @@
-# Vertex AI × LangChain — Minimal Chain (No Agents/No Tools)
 
-A tiny, multi-file skeleton that runs a **single LangChain chain** on **Vertex AI (Gemini)** from your local machine. No agents, no tools—just `prompt | model | parser` (LCEL). Clean, documented, and ready to extend.
+# Vertex AI × LangChain — Minimal Chain & Composite Graph (Text-Only)
+
+A tiny, multi-file skeleton that runs either:
+- a **single LCEL chain** (no agents/tools), or
+- a **minimal composite graph** (Runner → Router → Refiner) via LangGraph.
+
+All LLM calls use **Vertex AI (Gemini)**. I/O is **plain text** (`response_mime_type="text/plain"`). No external tools or retrieval.
+
+---
 
 ## Highlights
 
-* **LCEL minimalism:** `ChatPromptTemplate → ChatVertexAI → StrOutputParser`.
-* **Stable text I/O:** `response_mime_type="text/plain"`.
-* **Credential strategy:**
+- **LCEL minimalism:** `ChatPromptTemplate → ChatVertexAI → StrOutputParser`
+- **Composite orchestration:** atomic agents in `src/agents/`, team-owned wiring in `src/composite_agents/`, and generic graph builders in `src/chains/`
+- **Config-driven:** `src/config/default.yaml` for project/region/model; optional per-agent overrides
+- **Credential modes:**  
+  - Local explicit **Service Account (SA) JSON**  
+  - Cloud **ADC** via `USE_ADC=true`
+- **Pinned deps** (`src/requirements_langchain.txt`) for reproducible runs
 
-  * **Local default:** explicitly load a Service Account (SA) JSON.
-  * **Cloud switch:** set `USE_ADC=true` to use Application Default Credentials (ADC).
-* **Pinned, known-good versions** for reproducible runs.
+---
 
 ## Repo Layout
+```
 
-```
 .
-├─ src/
-│  ├─ .keys/               # privite key folder for testing
-│  ├─ config.py            # Project/region/model; explicit SA loader; USE_ADC switch
-│  ├─ llm/
-│  │  └─ vertex.py         # vertexai.init + ChatVertexAI wiring
-│  ├─ prompts/
-│  │  └─ base_prompt.py    # Minimal system+user prompt
-│  ├─ schemas/
-│  │  └─ io.py             # Pydantic I/O schemas
-│  ├─ chains/
-│  │  └─ simple_chain.py   # LCEL chain factory
-│  └─ runner/
-│     └─ run_simple.py     # CLI entrypoint
-└─ requirements.txt
-```
+├── README.md
+├── requirements.txt                    # (optional umbrella; prefer src/requirements\_langchain.txt)
+└── src
+├── config/
+│   └── default.yaml                    # project/region/model/overrides
+├── config.py                           # YAML+env loader, SA/ADC handling
+├── core/
+│   └── agent\_protocol.py              # tiny Agent Protocol
+├── llm/
+│   └── vertex.py                       # ChatVertexAI factory
+├── prompts/
+│   ├── base\_prompt.py
+│   ├── judge\_router\_prompt.py
+│   └── refiner\_prompt.py
+├── agents/                             # atomic agents (single responsibility)
+│   ├── runner\_agent.py
+│   ├── router\_agent.py
+│   └── refiner\_agent.py
+├── chains/                             # generic connection patterns
+│   ├── graphs.py                       # LangGraph builders
+│   └── simple\_chain.py                # LCEL chain factory
+├── composite\_agents/                  # team-maintained orchestrations
+│   └── runner\_router\_refiner.py      # Runner → Router → (Refiner)
+├── schemas/
+│   └── io.py                           # Pydantic I/O
+├── runner/
+│   ├── run\_simple.py                  # single-chain CLI
+│   └── run\_graph.py                   # composite graph CLI
+├── probe\_vertex.py                    # env & reachability probe
+└── requirements\_langchain.txt         # pinned, known-good deps
+
+````
+
+---
 
 ## Requirements
 
-* Python **3.11 or 3.12** (recommended)
-* Google Cloud project/region with Vertex AI enabled
+- Python **3.11 – 3.13**
+- A Google Cloud project with **Vertex AI** enabled (you’ll set the ID/region in YAML)
 
-  * `project = aime-hello-world`
-  * `location = us-central1`
-* SA key placed at: `src/.keys/aime-hello-world-2cd68fc662f2.json`
-
-### Python packages (pinned)
-
-```
-langchain==0.3.27
-langchain-core==0.3.72
-langchain-google-vertexai==2.0.28
-google-cloud-aiplatform==1.107.0
-pydantic>=2.7,<3
-```
-
-## Setup
+Install pinned deps:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -U pip
-pip install -r requirements.txt
+pip install -r src/requirements_langchain.txt
+````
+
+**Pinned versions (for reference):**
+
+```
+langchain==0.3.27
+langchain-core==0.3.72
+langchain-google-vertexai==2.0.28
+
+langgraph==0.6.4
+langgraph-checkpoint==2.1.1
+langgraph-prebuilt==0.6.4
+langgraph-sdk==0.2.0
+
+pydantic==2.11.7
+vertexai==1.43.0
+google-cloud-aiplatform==1.108.0
+google-auth==2.40.3
+PyYAML==6.0.2
 ```
 
-## Credentials
+---
 
-* **Do not commit keys.** Keep your SA JSON at `src/.keys/...` (already referenced by `config.py`).
-* Local runs **explicitly** load the key and pass credentials to both `vertexai.init` and `ChatVertexAI`.
-* Cloud runs (Cloud Run/GKE) can switch to **ADC** via an env var.
+## Configuration
 
-## Run Locally (MVP)
+### 1) `src/config/default.yaml`
+
+Fill with **your** project/region and (optionally) a local key filename. Keep the file user-agnostic; do **not** commit actual keys.
+
+```yaml
+project: "<your-project-id>"
+location: "us-central1"
+
+# If running locally with a Service Account key under src/.keys/
+# (Do NOT commit the key; this is just a filename reference.)
+credentials_name: "<your-key-file>.json"
+
+# Global LLM defaults
+model_name: "gemini-2.0-flash"
+temperature: 0.2
+max_output_tokens: 512
+response_mime_type: "text/plain"
+
+# Optional per-agent overrides (keys must match lookups in code)
+agents:
+  runner:
+    model: "gemini-2.0-flash"
+  refiner:
+    temperature: 0.0
+```
+
+### 2) Credentials
+
+* **Local SA (default)**
+  Place your key at `src/.keys/<your-key-file>.json` and reference it via `credentials_name` in YAML.
+
+* **Cloud ADC**
+  Deploy with a Service Account that has `roles/aiplatform.user` and set:
+
+  ```bash
+  export USE_ADC=true
+  ```
+
+  You can also override project/region via env:
+
+  ```bash
+  export GOOGLE_CLOUD_PROJECT="<your-project-id>"
+  export GOOGLE_CLOUD_REGION="us-central1"
+  ```
+
+> The repo never hardcodes `project` or key names; everything is configurable.
+
+---
+
+## Run Locally
+
+### Single LCEL Chain (no agents/tools)
 
 ```bash
 python -m src.runner.run_simple --input "Say exactly: OK."
 ```
 
-**Expected output**
+**Expected JSON**
 
 ```json
 {
@@ -80,36 +162,54 @@ python -m src.runner.run_simple --input "Say exactly: OK."
 }
 ```
 
-## Probe Mode (optional)
+### Composite Graph: Runner → Router → (Refiner)
 
-A quick preflight to verify model reachability and text channel.
-
-```bash
-python -m src.runner.run_simple --input "__probe__"
-```
-
-## Switch Between Local SA and Cloud ADC
-
-* **Local SA (default):** no env needed; `config.py` loads `src/.keys/...` and injects credentials.
-* **Cloud ADC:** set env var and deploy with a service account that has `roles/aiplatform.user`.
+* **PASS path** (Router rule: `draft.strip() == "OK."`)
 
 ```bash
-export USE_ADC=true
+python -m src.runner.run_graph --input "Say exactly: OK."
+# -> {"text":"OK."}
 ```
 
-## Configuration Knobs
+* **REFINE path** (force test the refiner branch)
 
-* **Project/region/model:** `src/config.py`
+```bash
+python -m src.runner.run_graph --input "Say: hi" --force_refine
+# -> Refiner rewrites to satisfy requirements (keeps intent, plain text output)
+```
 
-  * `project="aime-hello-world"`, `location="us-central1"`
-  * `model_name="gemini-2.0-flash"` (stable, widely available)
-* **Generation params:** `temperature`, `max_output_tokens`
-* **Prompt:** `src/prompts/base_prompt.py`
+---
 
-## What’s Working (MVP)
+## Probe (optional)
 
-* End-to-end LCEL chain returns stable plain-text via Vertex AI Gemini:
+Quick env & reachability checks:
 
-  * Local run with **explicit SA credentials**
-  * Optional cloud run with **ADC**
-* Minimal CLI produces JSON output suitable for piping to a frontend.
+```bash
+# Library versions, config source, creds env
+python -m src.probe_vertex
+
+# Plus a real model call
+python -m src.probe_vertex --call
+```
+
+---
+
+## Extending
+
+* **Add an atomic agent**: implement `invoke(state: dict) -> dict` (see `src/core/agent_protocol.py`).
+* **Add a composite**: create a new module in `src/composite_agents/` that wires agents using builders in `src/chains/`.
+* **Change routing**: edit `RouterAgent` (deterministic rule) or switch to LLM judging (`prompts/judge_router_prompt.py`).
+* **Per-agent LLM tuning**: put overrides under `agents:` in YAML; `vertex.py` merges defaults + overrides.
+
+---
+
+## What’s Included (MVP)
+
+* **Text-only** LCEL chain on Vertex AI Gemini
+* **Composite** two-agent (+refiner) graph with deterministic routing
+* **Clean ownership boundaries**:
+
+  * `agents/` = atomic implementations
+  * `chains/` = generic connection patterns
+  * `composite_agents/` = team-maintained orchestrations
+  * `config/` = environment-portable, no hardcoded project/key names

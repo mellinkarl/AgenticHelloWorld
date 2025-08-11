@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Any
+from typing import Mapping, Dict, Any
 
 class RouterAgent:
     """
@@ -9,7 +9,7 @@ class RouterAgent:
     def __init__(self, require_exact: str = "OK."):
         self.require_exact = require_exact
 
-    def invoke(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    def invoke(self, state: Mapping[str, Any]) -> Dict[str, Any]:
         if state.get("force_refine"):
             return {"route": "REFINE"}
         draft = (state.get("draft") or "").strip()
