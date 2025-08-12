@@ -106,7 +106,7 @@ class Config:
                 max_output_tokens=y.get("max_output_tokens", LLMDefaults.max_output_tokens),
                 response_mime_type=y.get("response_mime_type", LLMDefaults.response_mime_type),
                 system_instruction=y.get("system_instruction", LLMDefaults.system_instruction),
-                stop_sequences=y.get("stop_sequences", LLMDefaults.stop_sequences),
+                stop_sequences=list(y.get("stop_sequences") or []),
                 timeout_s=y.get("timeout_s", LLMDefaults.timeout_s),
             ),
             agents=y.get("agents", {}) if isinstance(y.get("agents", {}), dict) else {},
