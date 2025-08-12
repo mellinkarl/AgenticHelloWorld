@@ -5,8 +5,8 @@ from ..prompts.refiner_prompt import REFINER_PROMPT
 
 class RefinerAgent:
     """
-    Agent-3: Refines draft to satisfy hard requirements without changing intent.
-    Output: {"text": str}  (final)
+    refiner_agent: Refines draft to satisfy hard requirements without changing intent.
+    Output: {"text": str} 
     """
     def __init__(self, llm, requirements: str = "Must be exactly 'OK.'"):
         self.chain = REFINER_PROMPT | llm
