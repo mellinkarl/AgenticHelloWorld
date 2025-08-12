@@ -1,5 +1,5 @@
 langchain==0.3.27
-langchain-core==0.3.72
+langchain-core==0.3.74
 langchain-google-vertexai==2.0.28
 
 langgraph==0.6.4
@@ -12,3 +12,6 @@ vertexai==1.43.0
 google-cloud-aiplatform==1.108.0
 google-auth==2.40.3
 PyYAML==6.0.2
+
+# test
+pytest==8.4.1

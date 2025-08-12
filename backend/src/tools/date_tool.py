@@ -1,6 +1,9 @@
 from __future__ import annotations
-from datetime import date
+from datetime import date, timedelta
 
 def get_today_iso() -> str:
-    """Return today's date in ISO format (YYYY-MM-DD)."""
     return date.today().isoformat()
+
+
+def get_yesterday_iso() -> str:
+    return (date.today() - timedelta(days=1)).isoformat()

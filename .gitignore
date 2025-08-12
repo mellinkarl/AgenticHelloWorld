@@ -58,3 +58,7 @@ __MACOSX/
 
 # === Keys ===
 .keys/
+
+# Logs
+logs/
+*.log

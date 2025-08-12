@@ -14,7 +14,7 @@ import vertexai
 from google.auth.exceptions import DefaultCredentialsError
 from langchain_google_vertexai import ChatVertexAI
 
-from .config import Config, USE_ADC
+from .config.config import Config, USE_ADC
 
 
 def print_env_probe(cfg: Config) -> None:
