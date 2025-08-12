@@ -1,28 +1,55 @@
-# ---- Cloud / Vertex ----
-project: aime-hello-world
-location: us-central1
-# api_endpoint: ""   # optional override
+# src/config/default.yaml — production-leaning template
+# Everything here can be overridden per-agent or at runtime (where noted).
+
+# ---------- Cloud / Auth ----------
+project: your-gcp-project              # REQUIRED unless provided via env
+location: us-central1                  # REQUIRED unless provided via env
+api_endpoint: ""                       # Optional: custom Vertex endpoint/region routing
 credentials_name: aime-hello-world-2cd68fc662f2.json
+# If USE_ADC=true, ADC wins and credentials_name is ignored.
 
-# ---- LLM defaults ----
-model_name: gemini-2.0-flash
-temperature: 0.2
-max_output_tokens: 512
-response_mime_type: text/plain
+# ---------- Global LLM defaults ----------
+model_name: gemini-2.0-flash           # Global default model
+temperature: 0.2                       # Global default sampling
+top_p: 0.95
+top_k: 40
+candidate_count: 1
+max_output_tokens: 1024
+response_mime_type: text/plain         # Most backends default to text/plain
+system_instruction: ""                 # Optional global system prompt (empty = off)
+stop_sequences: []                     # Optional global stop tokens
 
-# ---- Agent-level overrides (optional) ----
+# ---------- Runtime/Transport controls ----------
+timeout_s: 60                          # Per-call timeout at app layer (not SDK-enforced)
+retry:                                 # App-level retry policy (wraps your LLM calls)
+  max_attempts: 3
+  initial_backoff_s: 0.5
+  max_backoff_s: 8.0
+  multiplier: 2.0
+
+# ---------- Per-agent overrides (only for LLM-backed agents) ----------
+# Keys map to agent names you pass to llm_kwargs(agent="<name>")
 agents:
-  runner:
+  runner:                              # LLMRunnerAgent
     temperature: 0.1
-  decider:
+    max_output_tokens: 768
+    system_instruction: "Be brief and literal."
+  refiner:                             # RefinerAgent
+    max_output_tokens: 1024
+  decider:                             # LLMRouterAgent
     temperature: 0.0
-  refiner:
-    temperature: 0.2
+    top_p: 1.0
+    system_instruction: "You only decide a route label."
+  # You can add any custom LLM agent key, e.g.:
+  # my_reasoner:
+  #   model_name: gemini-2.0-pro
+  #   temperature: 0.3
 
-# ---- Logging ----
+# ---------- Logging ----------
 logging:
-  level: INFO      # DEBUG/INFO/WARN/ERROR
-  format: json     # json | pretty
-  file: logs/app.log
-  rotate_mb: 10
+  level: INFO                          # DEBUG/INFO/WARN/ERROR
+  format: json                         # json | pretty
+  include_request_id: true
+  file: logs/app.log                   # "" or null to disable file logging
+  rotate_mb: 10                        # Optional: if your handler rotates
   rotate_backups: 5
