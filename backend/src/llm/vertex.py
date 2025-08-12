@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Optional
 
 from langchain_google_vertexai import ChatVertexAI
-from ..config.config import Config, USE_ADC
+from ..config.config import Config
 
 
 def get_vertex_chat_model(cfg: Optional[Config] = None, agent: Optional[str] = None, **overrides) -> ChatVertexAI:
@@ -15,6 +15,6 @@ def get_vertex_chat_model(cfg: Optional[Config] = None, agent: Optional[str] = N
     cfg.apply_google_env()
     cfg.init_vertex()
 
-    creds = None if USE_ADC else cfg.load_credentials()
+    creds = None if cfg.use_adc else cfg.load_credentials()
     kwargs = cfg.llm_kwargs(agent=agent, **overrides)
     return ChatVertexAI(credentials=creds, **kwargs)
