@@ -4,6 +4,35 @@ from typing import Optional, Dict, Any
 from langchain_google_vertexai import ChatVertexAI
 from ..config.config import Config
 
+# Allow-list for your current langchain-google-vertexai version
+_ALLOWED_KW = {
+    "project",
+    "location",
+    "model",
+    "temperature",
+    "top_p",
+    "top_k",
+    "max_output_tokens",
+    "response_mime_type",
+    # NOTE: we pass 'credentials' separately to the ctor, not via kwargs
+}
+_ALIAS_MAP = {
+    # YAML uses timeout_s; LangChain wants request_timeout
+    "timeout_s": "request_timeout",
+}
+
+def _sanitize_model_kwargs(raw: Dict[str, Any]) -> Dict[str, Any]:
+    """Drop unknown keys and apply a few aliases so the adapter won't warn."""
+    out: Dict[str, Any] = {}
+    for k, v in raw.items():
+        if v is None:
+            continue
+        if k in _ALLOWED_KW:
+            out[k] = v
+        elif k in _ALIAS_MAP:
+            out[_ALIAS_MAP[k]] = v
+        # else: silently drop (e.g., candidate_count, system_instruction, api_endpoint)
+    return out
 
 def get_vertex_chat_model(
     cfg: Optional[Config] = None,
@@ -11,22 +40,19 @@ def get_vertex_chat_model(
     **overrides: Dict[str, Any],
 ) -> ChatVertexAI:
     """
-    Create a ChatVertexAI with config + (optional) agent-level + runtime overrides.
-    Precedence: global <- agents.<agent> <- **overrides
+    Build ChatVertexAI with:
+      global defaults <- agents.<agent> overrides <- runtime **overrides
+    Then sanitize to only pass adapter-supported kwargs.
     """
     cfg = cfg or Config.load()
 
-    # 1) 环境变量布线（ADC / 本地 key）
+    # Wire env (ADC/local SA), get explicit creds if any, then init Vertex
     cfg.apply_google_env()
-
-    # 2) 取显式凭证（ADC 下为 None）
     creds = cfg.load_credentials()
-
-    # 3) 初始化 Vertex 客户端（若有显式凭证则带上）
     cfg.init_vertex(credentials=creds)
 
-    # 4) 组装模型参数（移除 None）
-    kwargs = {k: v for k, v in cfg.llm_kwargs(agent=agent, **overrides).items() if v is not None}
+    raw = cfg.llm_kwargs(agent=agent, **overrides)
+    kwargs = _sanitize_model_kwargs(raw)
 
-    # 5) 传给 LangChain 适配器；有 creds 则显式注入
+    # Construct adapter; inject credentials explicitly if present
     return ChatVertexAI(credentials=creds, **kwargs)

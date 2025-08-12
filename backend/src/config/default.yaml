@@ -2,7 +2,7 @@
 # Everything here can be overridden per-agent or at runtime (where noted).
 
 # ---------- Cloud / Auth ----------
-project: your-gcp-project              # REQUIRED unless provided via env
+project: aime-hello-world              # REQUIRED unless provided via env
 location: us-central1                  # REQUIRED unless provided via env
 api_endpoint: ""                       # Optional: custom Vertex endpoint/region routing
 credentials_name: aime-hello-world-2cd68fc662f2.json
