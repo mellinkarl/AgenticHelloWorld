@@ -6,6 +6,8 @@ import json
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Dict, Optional
+from google.oauth2.service_account import Credentials as _SACredentials
+import vertexai
 
 import yaml
 
@@ -104,7 +106,7 @@ class Config:
                 max_output_tokens=y.get("max_output_tokens", LLMDefaults.max_output_tokens),
                 response_mime_type=y.get("response_mime_type", LLMDefaults.response_mime_type),
                 system_instruction=y.get("system_instruction", LLMDefaults.system_instruction),
-                stop_sequences=y.get("stop_sequences", LLMDefaults.stop_sequences),
+                stop_sequences=list(y.get("stop_sequences") or []),
                 timeout_s=y.get("timeout_s", LLMDefaults.timeout_s),
             ),
             agents=y.get("agents", {}) if isinstance(y.get("agents", {}), dict) else {},
@@ -152,6 +154,51 @@ class Config:
         # No local key => rely on GOOGLE_APPLICATION_CREDENTIALS or ADC
         return None
 
+     # ---------- Google env wiring ----------
+    
+    def apply_google_env(self) -> None:
+        """
+        Export env vars for SDKs that read ADC from environment.
+        - If use_adc=True: ensure GOOGLE_APPLICATION_CREDENTIALS is unset (SDK will use ADC).
+        - Else: set GOOGLE_APPLICATION_CREDENTIALS to the resolved key file path (if any).
+        Always set GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_REGION for downstream libs.
+        """
+        if self.use_adc:
+            os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+        else:
+            p = self.credential_path()
+            if p is not None:
+                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(p.resolve())
+        os.environ["GOOGLE_CLOUD_PROJECT"] = self.project or ""
+        os.environ["GOOGLE_CLOUD_REGION"] = self.location or ""
+
+    # ---------- Credentials object (for explicit injection) ----------
+    def load_credentials(self):
+        """
+        Returns a google.oauth2.service_account.Credentials object when not using ADC.
+        Returns None if use_adc=True or when no local key is configured.
+        """
+        if self.use_adc:
+            return None
+        p = self.credential_path()
+        if p is None or not p.exists():
+            return None
+        return _SACredentials.from_service_account_file(
+            str(p),
+            scopes=["https://www.googleapis.com/auth/cloud-platform"],
+        )
+
+    # ---------- Vertex endpoint bootstrap ----------
+    def init_vertex(self, credentials=None) -> None:
+        """
+        Initialize the Vertex AI client with explicit named parameters.
+        Using named args avoids Pylance '**kwargs' type confusion.
+        """
+        if credentials is None:
+            vertexai.init(project=self.project, location=self.location)
+        else:
+            vertexai.init(project=self.project, location=self.location, credentials=credentials)
+        
     # ---------- LLM kwargs builder ----------
     def llm_kwargs(self, agent: Optional[str] = None, **overrides) -> Dict[str, Any]:
         """
