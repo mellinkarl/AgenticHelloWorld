@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Optional
 
 from langchain_google_vertexai import ChatVertexAI
-from ..config import Config, USE_ADC
+from ..config.config import Config, USE_ADC
 
 
 def get_vertex_chat_model(cfg: Optional[Config] = None, agent: Optional[str] = None, **overrides) -> ChatVertexAI:

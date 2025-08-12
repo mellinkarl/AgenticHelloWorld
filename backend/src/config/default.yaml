@@ -1,21 +1,28 @@
-# === Global GCP settings ===
+# ---- Cloud / Vertex ----
 project: aime-hello-world
 location: us-central1
-
-# === Local credentials strategy (ignored when USE_ADC=true) ===
-# Put your key under src/.keys/ and set the filename here.
+# api_endpoint: ""   # optional override
 credentials_name: aime-hello-world-2cd68fc662f2.json
 
-# === Global LLM defaults; agents can override below ===
+# ---- LLM defaults ----
 model_name: gemini-2.0-flash
 temperature: 0.2
 max_output_tokens: 512
 response_mime_type: text/plain
 
-# === Optional per-agent overrides ===
+# ---- Agent-level overrides (optional) ----
 agents:
   runner:
     temperature: 0.1
+  decider:
+    temperature: 0.0
   refiner:
-    model: gemini-2.0-flash
-    temperature: 0.3
+    temperature: 0.2
+
+# ---- Logging ----
+logging:
+  level: INFO      # DEBUG/INFO/WARN/ERROR
+  format: json     # json | pretty
+  file: logs/app.log
+  rotate_mb: 10
+  rotate_backups: 5
