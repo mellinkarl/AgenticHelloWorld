@@ -201,7 +201,7 @@ state.update(LengthKeywordGuardAgent(must_include=["OK"]).invoke(state))
 state.update(SchemaEnforcerAgent(mode="text").invoke(state))
 
 print(state["text"])  # "OK."
-````
+```
 
 ---
 

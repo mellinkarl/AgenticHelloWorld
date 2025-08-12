@@ -122,8 +122,9 @@ async def invoke_template_filler(req: TemplateFillerInvokeRequest) -> InvokeResp
 # ---------- Agent factory registry (for generic endpoint) ----------
 def _build_llm_runner(cfg: Config, args: Dict[str, Any]):
     llm = get_vertex_chat_model(cfg, agent="runner")
-    prompt = get_prompt(args["prompt_name"]) if "prompt_name" in args else None
+    prompt = get_prompt(args["prompt_name"]) if "prompt_name" in args and args["prompt_name"] else None
     return LLMRunnerAgent(llm, prompt=prompt)
+
 
 def _build_rule_router(cfg: Config, args: Dict[str, Any]):
     return RuleRouterAgent(**args)
