@@ -1,7 +1,7 @@
 '''
 cmd: # Linear demo composite; stderr prints each step's snapshot
 python -m src.runner.run_composite_test --input "Please say exactly: OK."
-python -m src.runner.run_composite_test --input "Please say one radom sentence."
+python -m src.runner.run_composite_test --input "Please say one ramdom sentence."
 '''
 from __future__ import annotations
 import argparse, json

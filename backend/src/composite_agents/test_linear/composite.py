@@ -37,7 +37,7 @@ class TestLinearComposite:
         if route == "REFINE_DATE" and state.get("tool_text"):
             return str(state["tool_text"])
         if route == "PASS" and state.get("draft"):
-            return str(state["draft"])
+            return str(state["draft"]).strip()
         return str(state.get("text", ""))
 
     def __init__(
@@ -68,7 +68,7 @@ class TestLinearComposite:
         # tools / utils
         self.date_tool = date_tool or PythonToolAgent(get_today_iso, output_key="today")
         self.template = template or TemplateFillerAgent("{today} OK", output_key="tool_text")
-        self.diff_enforcer = diff_enforcer or DiffEnforcerAgent(text_key="text", draft_key="draft", use_suffix_key="today")
+        self.diff_enforcer = diff_enforcer or DiffEnforcerAgent(text_key="text", draft_key="draft", use_suffix_key="tool_text")
         self.guard = guard or LengthKeywordGuardAgent(**RULES["guard"], source_key="text")
         self.schema_enforcer = schema_enforcer or SchemaEnforcerAgent(mode="text", prefer_key="text")
 
