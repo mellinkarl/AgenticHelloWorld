@@ -191,16 +191,14 @@ class Config:
     # ---------- Vertex endpoint bootstrap ----------
     def init_vertex(self, credentials=None) -> None:
         """
-        Initialize the Vertex AI client.
-        - If a Credentials object is provided, pass it explicitly (works for local keys).
-        - Otherwise let Vertex use ADC according to environment.
+        Initialize the Vertex AI client with explicit named parameters.
+        Using named args avoids Pylance '**kwargs' type confusion.
         """
-        kwargs = {"project": self.project, "location": self.location}
-        if credentials is not None:
-            kwargs["credentials"] = credentials
-        # NOTE: vertexai.init() does not take api_endpoint for Generative models;
-        # location drives the endpoint. If your stack adds support later, wire it here.
-        vertexai.init(**kwargs)
+        if credentials is None:
+            vertexai.init(project=self.project, location=self.location)
+        else:
+            vertexai.init(project=self.project, location=self.location, credentials=credentials)
+        
     # ---------- LLM kwargs builder ----------
     def llm_kwargs(self, agent: Optional[str] = None, **overrides) -> Dict[str, Any]:
         """
