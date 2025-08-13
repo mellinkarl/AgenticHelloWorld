@@ -1,59 +1,85 @@
 from __future__ import annotations
 from typing import Dict, Any
+import importlib
+import pkgutil
+import re
 
-# Core prompts shipped with the repo
-from .base_prompt import BASE_PROMPT
-from .refiner_prompt import REFINER_PROMPT
+from langchain_core.prompts import BasePromptTemplate
 
-# If present in your tree, keep this import; otherwise you can remove it.
-try:
-    from .llm_router_prompt import LLM_ROUTER_PROMPT  # noqa: F401
-    _HAS_LLM_ROUTER = True
-except Exception:  # pragma: no cover
-    LLM_ROUTER_PROMPT = None  # type: ignore
-    _HAS_LLM_ROUTER = False
+# Public registry (filled by discovery)
+PROMPTS: Dict[str, BasePromptTemplate] = {}
 
-# ---- Registry ---------------------------------------------------------------
+_NAME_CLEAN = re.compile(r"_prompt$", re.IGNORECASE)
 
-PROMPTS: Dict[str, Any] = {
-    "base": BASE_PROMPT,
-    "refiner": REFINER_PROMPT,
-}
-
-if _HAS_LLM_ROUTER and LLM_ROUTER_PROMPT is not None:
-    PROMPTS["llm_router"] = LLM_ROUTER_PROMPT
-
-def register_prompt(name: str, prompt: Any) -> None:
+def _norm_from_attr(attr_name: str) -> str:
     """
-    Register a universal prompt under a string name.
-    Example:
-        from langchain_core.prompts import ChatPromptTemplate
-        P = ChatPromptTemplate.from_messages([...])
-        register_prompt("runner/personal", P)
+    Convert VAR names like 'LLM_ROUTER_PROMPT' or 'BASE_TEXT_ONLY_PROMPT'
+    to registry keys 'llm_router' and 'base_text_only'.
     """
-    if not name or not isinstance(name, str):
-        raise ValueError("Prompt name must be a non-empty string.")
+    name = attr_name.lower()
+    name = _NAME_CLEAN.sub("", name)           # strip trailing _prompt
+    if name.endswith("_"):
+        name = name[:-1]
+    return name
+
+def _register(name: str, prompt: BasePromptTemplate) -> None:
+    if not isinstance(prompt, BasePromptTemplate):
+        raise TypeError(f"Prompt '{name}' must be a BasePromptTemplate")
     PROMPTS[name] = prompt
 
-def get_prompt(name: str) -> Any:
+def _register_from_module(mod) -> None:
     """
-    Lookup a registered universal prompt by name.
-    Raises KeyError if not found.
+    Module registration rules:
+    1) If module defines __all_prompts__ (dict[name, prompt]), use it exactly.
+    2) Else, auto-pick any BasePromptTemplate attrs; key = normalized attr name.
     """
-    if name not in PROMPTS:
+    custom = getattr(mod, "__all_prompts__", None)
+    if isinstance(custom, dict):
+        for k, v in custom.items():
+            if isinstance(v, BasePromptTemplate):
+                _register(k, v)
+        return
+
+    for attr, obj in vars(mod).items():
+        if isinstance(obj, BasePromptTemplate):
+            key = _norm_from_attr(attr)
+            _register(key, obj)
+
+def _discover() -> None:
+    """
+    Auto-import all submodules in this package whose name ends with '_prompt'.
+    Register any BasePromptTemplate they expose.
+    """
+    pkg = importlib.import_module(__name__)
+    for m in pkgutil.iter_modules(pkg.__path__):
+        if m.ispkg:
+            continue
+        if not m.name.endswith("_prompt"):
+            continue
+        try:
+            mod = importlib.import_module(f"{__name__}.{m.name}")
+        except Exception as e:  # pragma: no cover
+            # Keep registry resilient: skip broken prompt modules
+            # (They can be fixed without blocking the whole system)
+            continue
+        _register_from_module(mod)
+
+def reload_prompts() -> Dict[str, str]:
+    """Dev helper: clear & re-discover prompts; return summary."""
+    PROMPTS.clear()
+    _discover()
+    return list_prompts()
+
+def get_prompt(name: str) -> BasePromptTemplate:
+    try:
+        return PROMPTS[name]
+    except KeyError:
         raise KeyError(f"Unknown prompt: {name}. Known: {sorted(PROMPTS.keys())}")
-    return PROMPTS[name]
 
 def list_prompts() -> Dict[str, str]:
-    """Return a shallow view of available prompt names (for diagnostics)."""
     return {k: type(v).__name__ for k, v in PROMPTS.items()}
 
-__all__ = [
-    "BASE_PROMPT",
-    "REFINER_PROMPT",
-    "LLM_ROUTER_PROMPT",
-    "PROMPTS",
-    "get_prompt",
-    "register_prompt",
-    "list_prompts",
-]
+# ---- initial discovery at import time ----
+_discover()
+
+__all__ = ["PROMPTS", "get_prompt", "list_prompts", "reload_prompts"]

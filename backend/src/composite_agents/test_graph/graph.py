@@ -98,12 +98,12 @@ class TestGraphComposite:
     def __init__(self, *, runner_llm=None, refiner_llm=None):
         # Reuse LLMRunner twice:
         #  - with a GLOBAL prompt from registry ("base")
-        self.runner_global = LLMRunnerAgent(llm=runner_llm, prompt=get_prompt("base"))
+        self.runner_global = LLMRunnerAgent(llm=runner_llm, prompt=get_prompt("base_text_only"))
         #  - with a COMPOSITE-LOCAL prompt
         self.runner_local_filler = LLMRunnerAgent(llm=runner_llm, prompt=LOCAL_FILLER_PROMPT)
 
         # Keep-intent refiner
-        self.refiner = RefinerAgent(llm=refiner_llm, requirements="Keep intent; improve clarity only.")
+        self.refiner = RefinerAgent(llm=refiner_llm)
 
         # Tool by NAME through registry (swappable at startup)
         self.double_annotator = PythonToolAgent(
@@ -166,7 +166,7 @@ class TestGraphComposite:
     def _n_runner(self, state: GraphState) -> Dict[str, Any]:
         """Ask the model for 6 random lowercase letters (continuous, no spaces/punct)."""
         ui = (
-            "Generate exactly six random lowercase letters as a continuous string. "
+            "Generate exactly 6 random lowercase letters as a continuous string. "
             "No spaces, no punctuation, only [a-z]. Return letters only."
         )
         out = self.runner_global.invoke({"user_input": ui})
