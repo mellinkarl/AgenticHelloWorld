@@ -20,7 +20,7 @@ system_instruction: ""                 # Optional global system prompt (empty = 
 stop_sequences: []                     # Optional global stop tokens
 
 # ---------- Runtime/Transport controls ----------
-timeout_s: 60                          # Per-call timeout at app layer (not SDK-enforced)
+timeout: 60                          # Per-call timeout at app layer (not SDK-enforced)
 retry:                                 # App-level retry policy (wraps your LLM calls)
   max_attempts: 3
   initial_backoff_s: 0.5
@@ -47,7 +47,8 @@ agents:
 
 # ---------- Logging ----------
 logging:
-  level: INFO                          # DEBUG/INFO/WARN/ERROR
+  # level: INFO                          # DEBUG/INFO/WARN/ERROR
+  level: DEBUG                          # DEBUG/INFO/WARN/ERROR
   format: json                         # json | pretty
   include_request_id: true
   file: logs/app.log                   # "" or null to disable file logging
