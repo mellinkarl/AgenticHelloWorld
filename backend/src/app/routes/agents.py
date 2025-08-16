@@ -15,11 +15,8 @@ from ...llm.vertex import get_vertex_chat_model
 from ...agents.llm_runner_agent import LLMRunnerAgent
 from ...agents.rule_router_agent import RuleRouterAgent
 from ...agents.llm_router_agent import LLMRouterAgent
-from ...agents.refiner_agent import RefinerAgent
 from ...agents.schema_enforcer_agent import SchemaEnforcerAgent
-from ...agents.length_keyword_guard_agent import LengthKeywordGuardAgent
-from ...agents.diff_enforcer_agent import DiffEnforcerAgent
-from ...agents.python_tool_agent import PythonToolAgent
+from ...agents.tool_agent import PythonToolAgent
 from ...agents.template_filler_agent import TemplateFillerAgent
 
 # Optional: prompt registry for runtime selection
@@ -133,28 +130,14 @@ def _build_llm_router(cfg: Config, args: Dict[str, Any]):
     llm = get_vertex_chat_model(cfg, agent="decider")
     return LLMRouterAgent(llm)
 
-def _build_refiner(cfg: Config, args: Dict[str, Any]):
-    llm = get_vertex_chat_model(cfg, agent="refiner")
-    requirements = args.get("requirements", "Keep intent; improve clarity only.")
-    return RefinerAgent(llm, requirements=requirements)
-
 def _build_schema_enforcer(cfg: Config, args: Dict[str, Any]):
     return SchemaEnforcerAgent(**args)
-
-def _build_length_keyword_guard(cfg: Config, args: Dict[str, Any]):
-    return LengthKeywordGuardAgent(**args)
-
-def _build_diff_enforcer(cfg: Config, args: Dict[str, Any]):
-    return DiffEnforcerAgent(**args)
 
 AGENT_BUILDERS: Dict[str, Callable[[Config, Dict[str, Any]], Any]] = {
     "llmrunneragent": _build_llm_runner,
     "rulerouteragent": _build_rule_router,
     "llmrouteragent": _build_llm_router,
-    "refineragent": _build_refiner,
     "schemaenforceragent": _build_schema_enforcer,
-    "lengthkeywordguardagent": _build_length_keyword_guard,
-    "diffenforceragent": _build_diff_enforcer,
 }
 
 

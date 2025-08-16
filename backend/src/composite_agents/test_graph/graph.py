@@ -1,6 +1,5 @@
 # src/composite_agents/test_graph/graph.py
-#
-# 🚀 Kick-start tutorial: how to build a small LangGraph composite
+#  ✌️ Kick-start tutorial: how to build a small LangGraph composite 
 # ---------------------------------------------------------------
 # What this graph does:
 #   1) Ask an LLM to produce exactly 6 lowercase letters (e.g., "aabbcc").
@@ -35,9 +34,8 @@ from langchain_core.runnables import RunnableLambda  # wraps plain functions as 
 
 # Universal (reusable) agents
 from ...agents.llm_runner_agent import LLMRunnerAgent
-from ...agents.refiner_agent import RefinerAgent
 from ...agents.template_filler_agent import TemplateFillerAgent
-from ...agents.python_tool_agent import PythonToolAgent
+from ...agents.tool_agent import PythonToolAgent
 from ...agents.schema_enforcer_agent import SchemaEnforcerAgent
 
 # Global prompt registry (e.g., "base")
@@ -101,9 +99,6 @@ class TestGraphComposite:
         self.runner_global = LLMRunnerAgent(llm=runner_llm, prompt=get_prompt("base_text_only"))
         #  - with a COMPOSITE-LOCAL prompt
         self.runner_local_filler = LLMRunnerAgent(llm=runner_llm, prompt=LOCAL_FILLER_PROMPT)
-
-        # Keep-intent refiner
-        self.refiner = RefinerAgent(llm=refiner_llm)
 
         # Tool by NAME through registry (swappable at startup)
         self.double_annotator = PythonToolAgent(
@@ -202,10 +197,6 @@ class TestGraphComposite:
         out = self.runner_global.invoke({"user_input": ui})
         return {"text": str(out.get("draft", "")).strip()}
 
-    def _n_refine_sentence(self, state: GraphState) -> Dict[str, Any]:
-        # Refiner expects 'draft'; we pass the sentence via a tiny adapter
-        return self.refiner.invoke({"draft": state.get("text", "")})
-
     def _n_rule_len8(self, state: GraphState) -> Dict[str, Any]:
         return self._length_min8(state)
 
@@ -233,7 +224,6 @@ class TestGraphComposite:
 
         # NONE
         g.add_node("sentence_local", rl(self._n_sentence_local))
-        g.add_node("refine_sentence", rl(self._n_refine_sentence))
         g.add_node("rule_len8", rl(self._n_rule_len8))
         g.add_node("uppercase_final", rl(self._n_uppercase_final))
 
@@ -266,8 +256,7 @@ class TestGraphComposite:
         g.add_edge("uppercase_after_tool", "schema")
 
         # NONE path
-        g.add_edge("sentence_local", "refine_sentence")
-        g.add_edge("refine_sentence", "rule_len8")
+        g.add_edge("sentence_local", "rule_len8")
         g.add_edge("rule_len8", "uppercase_final")
         g.add_edge("uppercase_final", "schema")
 
