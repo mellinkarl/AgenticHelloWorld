@@ -9,6 +9,8 @@ router = APIRouter(prefix="/composites/test-graph", tags=["composites"])
 
 # Stateless is fine: create per-request or cache a singleton.
 # Here we keep it simple and build per-call; swap to a module-level singleton if needed.
+# TODO: globl stat management
+# * since now is just local state for each request
 class InvokeBody(BaseModel):
     state: Dict[str, Any] = {}
 

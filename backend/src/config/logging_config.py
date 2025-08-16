@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from .config import Config
-from ..core.context import get_request_id  # <<< 新增
+from ..core.context import get_request_id
 
 # 过滤掉 logging.LogRecord 的“内置字段”，其余都当作 extra 合并
 _SKIP = {

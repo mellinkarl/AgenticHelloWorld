@@ -1,3 +1,4 @@
+# TODO: Add automatic logging functions here
 from __future__ import annotations
 
 def clip_text(s: str, limit: int = 120) -> str:
