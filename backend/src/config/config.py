@@ -44,7 +44,7 @@ class LLMDefaults:
     response_mime_type: str = "text/plain"
     system_instruction: Optional[str] = None
     stop_sequences: list[str] = field(default_factory=list)
-    timeout_s: int = 60
+    timeout: int = 60
 
 @dataclass
 class LoggingDefaults:
@@ -107,7 +107,7 @@ class Config:
                 response_mime_type=y.get("response_mime_type", LLMDefaults.response_mime_type),
                 system_instruction=y.get("system_instruction", LLMDefaults.system_instruction),
                 stop_sequences=list(y.get("stop_sequences") or []),
-                timeout_s=y.get("timeout_s", LLMDefaults.timeout_s),
+                timeout=y.get("timeout_s", LLMDefaults.timeout),
             ),
             agents=y.get("agents", {}) if isinstance(y.get("agents", {}), dict) else {},
             logging=LoggingDefaults(
@@ -219,7 +219,7 @@ class Config:
             "response_mime_type": self.llm.response_mime_type,
             "system_instruction": self.llm.system_instruction,
             "stop_sequences": list(self.llm.stop_sequences or []),
-            "timeout_s": int(self.llm.timeout_s),
+            "timeout_s": int(self.llm.timeout),
             # api_endpoint is optional and only used if your SDK supports it
             "api_endpoint": self.api_endpoint,
         }

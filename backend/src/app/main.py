@@ -43,9 +43,8 @@ from ..config import Config, init_logging, get_logger
 from ..tools.registry import registry
 from ..tools.date_tool import get_today_iso
 from ..core.context import set_request_id
-from .routes.agents import router as agents_router
 
-from .routes.test_graph import router as test_graph_router  # add this file (see below)
+from .routes.composite_test import router as test_graph_router  # add this file (see below)
 
 log = get_logger(__name__)
 
@@ -55,15 +54,15 @@ def create_app() -> FastAPI:
     init_logging(cfg)
 
     # Tool registry (safe to call multiple times; last one wins)
-    # TODO: maybe we should register on startup
+    # TODO: we should steup all tool in globl folder in register.py / but keep the functionality of register runable.
+    # So that we don't need to import all tool needed 
     registry.register("date.today", get_today_iso)
-    registry.register("string.mark_double", lambda s: f"double::{s}")
+    registry.register("string.mark_double", lambda s: f"double::{s}") ## register our own vertual tool. [TEST]
 
     app = FastAPI(title="Agent Backend", version="0.1.0")
 
     # Routers
-    app.include_router(agents_router)
-    app.include_router(test_graph_router)  # ⬅️ expose the composite
+    app.include_router(test_graph_router)  # ⬅️ expose the test composite
 
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next):
