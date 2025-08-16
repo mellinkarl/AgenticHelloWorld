@@ -9,7 +9,7 @@ from typing import Optional
 from .config import Config
 from ..core.context import get_request_id
 
-# 过滤掉 logging.LogRecord 的“内置字段”，其余都当作 extra 合并
+# Filter out the "built-in fields" of logging.LogRecord, and merge the rest as extras.
 _SKIP = {
     "name","msg","args","levelname","levelno","pathname","filename","module",
     "exc_info","exc_text","stack_info","lineno","funcName","created","msecs",
@@ -21,7 +21,7 @@ def _gather_extra(record: logging.LogRecord) -> dict:
     for k, v in record.__dict__.items():
         if k not in _SKIP and not k.startswith("_"):
             out[k] = v
-    # 注入 request_id（若 middleware 已设置）
+    # Inject request_id (if middleware is set)
     rid = get_request_id()
     if rid and "request_id" not in out:
         out["request_id"] = rid
