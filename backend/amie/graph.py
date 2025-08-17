@@ -47,11 +47,7 @@ def build_graph(checkpointer: BaseCheckpointSaver):
     import json
     def debug_print(state):
         print("===== FINAL GRAPH STATE =====")
-<<<<<<< HEAD
-        print(json.dumps(state, indent=2, ensure_ascii=False))  # 格式化 JSON
-=======
         print(json.dumps(state, indent=2, ensure_ascii=False))  # Pretty print JSON
->>>>>>> 0e37fbe (update documentation)
         print("===== END =====")
         return {}
 
