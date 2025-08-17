@@ -63,7 +63,7 @@ curl -X POST "http://127.0.0.1:8000/invoke" \
 Response example:
 
 ```json
-{ "request_id": "uuid-1234" }
+{ "request_id": "068dae74-0218-43ed-8482-d0d271e4bb99" }
 ```
 
 ---
@@ -72,8 +72,67 @@ Response example:
 
 Query the latest graph state by request\_id:
 
-```bash
-curl "http://127.0.0.1:8000/state/uuid-1234"
+```json
+[
+  {
+    "messages": [],
+    "request_id": "068dae74-0218-43ed-8482-d0d271e4bb99",
+    "doc_uri": "gs://bucket/file.pdf",
+    "metadata": {
+      "author": "Alice",
+      "field": "AI"
+    },
+    "manuscript_text": "This is a sample manuscript.",
+    "idca": {
+      "status": "present",
+      "summary": "MVP placeholder summary",
+      "fields": [
+        "demo"
+      ],
+      "reasoning": "Placeholder reasoning"
+    },
+    "novelty": {
+      "novel": true,
+      "matches": [],
+      "reasoning": "Placeholder novelty reasoning"
+    },
+    "report": {
+      "status": "MVP",
+      "note": "Pipeline skeleton executed successfully"
+    },
+    "errors": [],
+    "logs": [
+      "Ingestion placeholder ran",
+      "IDCA placeholder ran",
+      "Novelty placeholder ran",
+      "Aggregation placeholder ran"
+    ]
+  },
+  [],
+  {
+    "configurable": {
+      "thread_id": "068dae74-0218-43ed-8482-d0d271e4bb99",
+      "checkpoint_ns": "",
+      "checkpoint_id": "1f07b2b7-d975-670a-8005-a077a4c4708f"
+    }
+  },
+  {
+    "source": "loop",
+    "step": 5,
+    "parents": {}
+  },
+  "2025-08-17T05:31:56.936567+00:00",
+  {
+    "configurable": {
+      "thread_id": "068dae74-0218-43ed-8482-d0d271e4bb99",
+      "checkpoint_ns": "",
+      "checkpoint_id": "1f07b2b7-d973-6932-8004-1b4ed4e381a8"
+    }
+  },
+  [],
+  []
+]
+
 ```
 
 * HTTP response: checkpointed state
