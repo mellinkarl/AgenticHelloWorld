@@ -62,4 +62,7 @@ __MACOSX/
 # Logs
 logs/
 *.log
-.venv.langchain
+.venv*
+
+# Database storage
+*.db
