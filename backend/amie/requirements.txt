@@ -13,8 +13,13 @@ langchain-core              # Explicit core dependency
 langchain-google-vertexai   # VertexAI integration
 langgraph                   # StateGraph orchestration
 langgraph-checkpoint-sqlite # local memory store
+
 # === Document parsing ===
-pymupdf             # PDF parsing
+pymupdf             # PDF parsing (legacy, currently unused by IA)
+pypdf               # Lightweight PDF parser used by IA
+
+# === HTTP client ===
+httpx               # Async HTTP client for fetching documents
 
 # === Data models ===
 pydantic>=2.7,<3    # For request/response models
