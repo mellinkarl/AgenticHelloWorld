@@ -1,0 +1,25 @@
+# === Web backend ===
+fastapi              # API framework
+uvicorn[standard]    # ASGI server (with reload, uvloop, websockets)
+python-multipart     # Form-data parsing (needed for file uploads)
+
+# === Google Cloud ===
+google-cloud-storage     # To fetch documents from GCS
+google-cloud-aiplatform  # Vertex AI (LLM and embeddings)
+
+# === LangChain / LangGraph ===
+langchain                   # Core LangChain functionality
+langchain-core              # Explicit core dependency
+langchain-google-vertexai   # VertexAI integration
+langgraph                   # StateGraph orchestration
+langgraph-checkpoint-sqlite # local memory store
+
+# === Document parsing ===
+pymupdf             # PDF parsing (legacy, currently unused by IA)
+pypdf               # Lightweight PDF parser used by IA
+
+# === HTTP client ===
+httpx               # Async HTTP client for fetching documents
+
+# === Data models ===
+pydantic>=2.7,<3    # For request/response models
