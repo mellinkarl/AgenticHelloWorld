@@ -62,7 +62,7 @@ __MACOSX/
 # Logs
 logs/
 *.log
-.venv*
+
 
 # Database storage
 *.db
@@ -72,3 +72,7 @@ logs/
 # zip file
 *.tar.gz
 *.zip
+
+# tmp file 
+.venv*.*
+*.tmp.*
