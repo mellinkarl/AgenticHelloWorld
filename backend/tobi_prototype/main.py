@@ -147,7 +147,7 @@ def prompt_vertex(m: Manuscript):
             ),
         )
 
-        text = resp.candidates[0].content.parts[0].text
+        text = resp.text
         m.response = json.loads(text)
         m.status = "SUCCESS"
         m.finished = True
