@@ -72,3 +72,5 @@ logs/
 # zip file
 *.tar.gz
 *.zip
+
+*.tmp.*
