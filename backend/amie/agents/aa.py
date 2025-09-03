@@ -8,7 +8,7 @@ from typing import Dict, Any
 from langchain_core.runnables import RunnableLambda
 from ..state import GraphState
 
-def aa_node(state: GraphState) -> Dict[str, Any]:
+def aa_node_dummy(state: GraphState) -> Dict[str, Any]:
     """
     Aggregation Agent (dummy):
     - Reads artifacts from IDCA / NAA and composes a final JSON report.
@@ -35,5 +35,5 @@ def aa_node(state: GraphState) -> Dict[str, Any]:
         "logs": ["AA: dummy aggregation complete."],
     }
 
-AGGREGATION = RunnableLambda(aa_node)
+AGGREGATION = RunnableLambda(aa_node_dummy)
 

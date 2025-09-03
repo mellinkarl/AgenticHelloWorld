@@ -8,7 +8,7 @@ from typing import Dict, Any
 from langchain_core.runnables import RunnableLambda
 from ..state import GraphState
 
-def idca_node(state: GraphState) -> Dict[str, Any]:
+def idca_node_dummy(state: GraphState) -> Dict[str, Any]:
     """
     Invention Detection & Classification Agent (dummy):
     - Reads IA internals (normalized_uri) just to demonstrate cross-agent read.
@@ -34,5 +34,5 @@ def idca_node(state: GraphState) -> Dict[str, Any]:
         "logs": ["IDCA: dummy classification done."],
     }
 
-INVENTION_D_C = RunnableLambda(idca_node)
+INVENTION_D_C = RunnableLambda(idca_node_dummy)
 

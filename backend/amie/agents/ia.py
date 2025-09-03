@@ -8,7 +8,7 @@ from typing import Dict, Any
 from langchain_core.runnables import RunnableLambda
 from ..state import GraphState
 
-def ia_node(state: GraphState) -> Dict[str, Any]:
+def ia_node_dummy(state: GraphState) -> Dict[str, Any]:
     """
     Ingestion Agent (dummy):
     - Normalizes `doc_uri` into a canonical reference (no-op here).
@@ -38,4 +38,4 @@ def ia_node(state: GraphState) -> Dict[str, Any]:
 }
 
 # Export as a LangGraph Runnable node
-INGESTION = RunnableLambda(ia_node)
+INGESTION = RunnableLambda(ia_node_dummy)
