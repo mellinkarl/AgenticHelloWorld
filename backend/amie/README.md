@@ -83,6 +83,22 @@ pip install -r requirements.txt
 
 ### 5. Start Service
 
+#### 5.1 Could ADC
+```bash
+gcloud auth application-default login
+gcloud auth application-default set-quota-project aime-hello-world
+```
+#### 5.1.1 Onetime use
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/amie-agent-sa.json
+```
+
+#### 5.1.2 revert Onetime use
+```bash
+unset GOOGLE_APPLICATION_CREDENTIALS
+```
+
+#### 5.3 service
 ```bash
 # Disable Python bytecode cache
 PYTHONDONTWRITEBYTECODE=1 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000

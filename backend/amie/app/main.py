@@ -187,7 +187,7 @@ async def debug_state(request_id: str):
     return state
 
 
-# ----------------- New: PDF upload to GCS -----------------
+# ----------------- PDF upload to GCS -----------------
 
 @app.post("/upload-pdf")
 async def upload_pdf(
@@ -250,3 +250,18 @@ async def upload_pdf(
     result["suggested_invoke_payload"] = {"gcs_url": gs_url, "metadata": {"source": "upload-pdf"}}
 
     return JSONResponse(result)
+
+
+@app.post("/get-upload-url")
+async def get_upload_url_todo():
+    """
+    TODO(amie): Frontend direct-to-GCS via signed URL.
+    Design:
+      - Request: { "filename": str, "content_type": str, "size"?: int, "sha256"?: str }
+      - Response: { "upload_url": str, "gs_url": str, "headers_to_set": dict, "expires_in": int }
+    Notes:
+      - Use GCS signed URL (method=PUT, content_type bound, short TTL).
+      - Frontend uploads directly to GCS, then calls /invoke with gs_url.
+      - Keep /upload-pdf as backend-proxied fallback for small files/tests.
+    """
+    raise HTTPException(status_code=501, detail="Not implemented: direct signed upload URL")
