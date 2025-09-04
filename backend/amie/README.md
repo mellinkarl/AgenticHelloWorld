@@ -123,6 +123,20 @@ PYTHONDONTWRITEBYTECODE=1 uvicorn amie.app.main:app --host 0.0.0.0 --port 8000 -
 
 ## 📡 API Endpoints
 
+### Upload file (only accept .pdf and image format)
+
+#### Local Bcakend Test
+```bash
+curl -F "file=@/Users/harryzhang/git/AgenticHelloWorld/test_Docs/2507.15693v1.pdf" http://localhost:8000/upload-file
+
+curl -F "file=@/path/to/image.png" http://localhost:8000/upload-file
+```
+
+#### Frontend use GET_URL to directely submit to GCS
+```
+N/A
+```
+
 ### Submit Document Analysis Request
 
 ```bash
