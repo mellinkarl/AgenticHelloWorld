@@ -152,16 +152,16 @@ app.router.lifespan_context = lifespan
 
 @app.post("/invoke")
 async def invoke(payload: dict, background_tasks: BackgroundTasks):
-    gcs_url = payload.get("gcs_url")
+    doc_gcs_uri = payload.get("gcs_url")
     metadata = payload.get("metadata", {}) or {}
-    if not gcs_url:
+    if not doc_gcs_uri:
         raise HTTPException(status_code=400, detail="Missing gcs_url")
 
     request_id = str(uuid4())
 
     init: GraphState = {
         "request_id": request_id,
-        "doc_uri": gcs_url,
+        "doc_gcs_uri": doc_gcs_uri,
         "metadata": metadata,
         "status": "PENDING",
         "created_at": now_iso(),
@@ -218,7 +218,7 @@ async def debug_state(request_id: str):
 @app.post("/upload-file")
 async def upload_file(
     file: UploadFile = File(..., description="File (PDF or Image). multipart/form-data, field: file"),
-    return_signed_url: bool = Query(True, description="Return temporary signed HTTPS URL"),
+    return_signed_url: bool = Query(False, description="Return temporary signed HTTPS URL"),
     signed_url_ttl_seconds: int | None = Query(
         None, ge=60, le=7 * 24 * 3600, description="Override default signed URL TTL (max 7d)"
     ),
@@ -249,12 +249,12 @@ async def upload_file(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
 
-    gs_url = f"gs://{GCS_BUCKET}/{key}"
+    doc_gcs_uri = f"gs://{GCS_BUCKET}/{key}"
 
     result: dict[str, Any] = {
         "bucket": GCS_BUCKET,
         "object": key,
-        "gs_url": gs_url,
+        "doc_gcs_uri": doc_gcs_uri,
         "content_type": ct,
         "size": blob.size,
         "lifecycle": {
@@ -279,7 +279,7 @@ async def upload_file(
 
     # minimal suggestion body for downstream /invoke usage
     result["suggested_invoke_payload"] = {
-        "gcs_url": gs_url,
+        "doc_gcs_uri": doc_gcs_uri,
         "metadata": {"source": "upload-file"}
     }
 

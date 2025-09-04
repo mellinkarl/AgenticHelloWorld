@@ -63,7 +63,8 @@ class GraphState(TypedDict, total=False):
 
     # ---- Invocation basics (injected by API) ----
     request_id: str
-    doc_uri: str
+    doc_gcs_uri: str
+    doc_local_uri: str
     metadata: Dict[str, Any]
 
     # ---- Orchestration / global UI-facing ----
