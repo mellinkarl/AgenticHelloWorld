@@ -9,6 +9,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Query
 from fastapi.responses import JSONResponse
+from google import genai
 from google.cloud import storage
 
 from ..state import GraphState, default_runtime_block, frontend_view
@@ -20,16 +21,20 @@ app.state.graph = build_graph()
 app.state.store = InMemoryStore()
 
 # ---- GCS environment configuration ----
-GCS_BUCKET = os.environ.get("GCS_BUCKET")  # required
+GC_PROJECT = os.environ.get("GC_PROJECT")  # required (Project ID of Google Cloud Project)
+GCS_BUCKET = os.environ.get("GCS_BUCKET")  # required (Name of the bucket)
 GCS_PREFIX = os.environ.get("GCS_PREFIX", "amie/pdf/")  # default prefix for uploaded PDFs
 SIGNED_URL_TTL_SECONDS = int(os.environ.get("SIGNED_URL_TTL_SECONDS", "3600"))  # default: 1h
 
 if not GCS_BUCKET:
     raise RuntimeError("Env GCS_BUCKET is required")
 
-# Global GCS client and bucket handle (initialized in lifespan)
+# Global Genai, GCS client and bucket handle (initialized in lifespan)
+genai_client: genai.Client | None = None
 storage_client: storage.Client | None = None
 bucket: storage.Bucket | None = None
+
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -99,8 +104,9 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global storage_client, bucket
+    global genai_client, storage_client, bucket
     # Startup
+    genai_client = genai.Client(vertexai=True, project=GC_PROJECT, location="us-west1")
     storage_client = storage.Client()
     bucket = storage_client.bucket(GCS_BUCKET)
 
@@ -113,6 +119,7 @@ async def lifespan(app: FastAPI):
     yield  # Application runs
 
     # Shutdown (nothing special; keep for symmetry)
+    genai_client = None
     storage_client = None
     bucket = None
 
@@ -131,6 +138,7 @@ async def invoke(payload: dict, background_tasks: BackgroundTasks):
     request_id = str(uuid4())
 
     init: GraphState = {
+        "genai_client": genai_client,
         "request_id": request_id,
         "doc_uri": gcs_url,
         "metadata": metadata,
