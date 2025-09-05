@@ -1,21 +1,21 @@
-# Python 缓存文件
+# Python cache files
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 
-# 虚拟环境
+# Virtual environment
 .venv/
 venv/
 env/
 ENV/
 
-# 环境变量文件
+# Environment variable files
 .env
 .env.local
 .env.*.local
 
-# 系统文件
+# System files
 .DS_Store
 .DS_Store?
 ._*
@@ -24,39 +24,39 @@ ENV/
 ehthumbs.db
 Thumbs.db
 
-# 日志文件
+# Log files
 *.log
 *.log.*
 
-# IDE 文件
+# IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# 临时文件
+# Temporary files
 *.tmp
 *.temp
 *.bak
 *.backup
 
-# 测试覆盖率
+# Test coverage
 .coverage
 htmlcov/
 .pytest_cache/
 
-# 构建文件
+# Build files
 build/
 dist/
 *.egg-info/
 
-# 数据库文件
+# Database files
 *.db
 *.sqlite
 *.sqlite3
 
-# 其他
+# Other
 *.pid
 *.seed
 *.pid.lock
