@@ -25,6 +25,7 @@ def call_LLM(genai_client: genai.Client, model_name: str, content: types.Content
         return json.loads(text)
     
     except Exception as e:
+        print(f"LLM error: {e}")
         return None
     
 def multimedia_content(prompt: str,uri: str, m_type: str = "application/pdf") -> list:
@@ -38,6 +39,8 @@ def generate_output(log: str, step1: dict | None = None, step2: dict | None = No
 
     artifacts = {}
     cache = {}
+
+    artifacts["status"] = "absent"
 
     if step1:
         artifacts["fields"] = step1["fields_needed"]
@@ -63,17 +66,20 @@ def generate_output(log: str, step1: dict | None = None, step2: dict | None = No
 
 
 
-def idca_node(state: GraphState) -> Dict[str, Any]:
+def idca_node(state: GraphState, config) -> Dict[str, Any]:
     """
     Invention Detection & Classification Agent (dummy):
     - Reads IA internals (normalized_uri) just to demonstrate cross-agent read.
     - Emits a tiny 'idca' artifact.
     """
-
+    print("start idca")
 
     ia_cache = (state.get("internals") or {}).get("ia") or {}
-    src = ia_cache.get("normalized_uri", state.get("doc_uri"))
-    genai_client = state.get("genai_client")
+    src = state.get("doc_gcs_uri")
+    genai_client = config["configurable"]["genai_client"]
+
+    assert genai_client is not None, "genai_client missing in config['configurable']"
+    assert isinstance(genai_client, genai.Client), f"genai_client wrong type: {type(genai_client)}"
 
     """
     Step 1 - Classify Manuscript:
@@ -98,6 +104,7 @@ def idca_node(state: GraphState) -> Dict[str, Any]:
             break
     if step1 is None:
         return generate_output("LLM malfunctioned in step 1")
+    print(f"first llm call, response: {step1}")
 
     """
     Step 2 - Identify Invention:
@@ -120,6 +127,7 @@ def idca_node(state: GraphState) -> Dict[str, Any]:
             break
     if step2 is None:
         return generate_output("LLM malfunctioned in step 2", step1)
+    print(f"second llm call, response: {step2}")
 
     """
     Step 3 - Summarize:
@@ -144,6 +152,7 @@ def idca_node(state: GraphState) -> Dict[str, Any]:
             break
     if step3 is None:
         return generate_output("LLM malfunctioned in step 3", step1, step2)
+    print(f"third llm call, response: {step3}")
 
 
 

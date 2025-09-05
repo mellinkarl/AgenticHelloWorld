@@ -21,8 +21,8 @@ app.state.graph = build_graph()
 app.state.store = InMemoryStore()
 
 # ---- GCS environment configuration ----
-GC_PROJECT = os.environ.get("GC_PROJECT")  # required (Project ID of Google Cloud Project)
-GCS_BUCKET = os.environ.get("GCS_BUCKET")  # required (Name of the bucket)
+GC_PROJECT = os.environ.get("GC_PROJECT", "aime-hello-world")  # required (Project ID of Google Cloud Project)
+GCS_BUCKET = os.environ.get("GCS_BUCKET", )  # required (Name of the bucket)
 GCS_PREFIX = os.environ.get("GCS_PREFIX", "amie/pdf/")  # default prefix for uploaded PDFs
 SIGNED_URL_TTL_SECONDS = int(os.environ.get("SIGNED_URL_TTL_SECONDS", "3600"))  # default: 1h
 GCS_BUCKET = os.environ.get("GCS_BUCKET", "aime-hello-world-amie-uswest1")
@@ -32,8 +32,7 @@ SIGNED_URL_TTL_SECONDS = int(os.environ.get("SIGNED_URL_TTL_SECONDS", str(7 * 24
 if not GCS_BUCKET:
     raise RuntimeError("Env GCS_BUCKET is required")
 
-# Global Genai, GCS client and bucket handle (initialized in lifespan)
-genai_client: genai.Client | None = None
+
 # ---- Accepted types: PDF and images ----
 ACCEPTED_SUFFIXES = [
     ".pdf", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tiff", ".tif"
@@ -41,7 +40,8 @@ ACCEPTED_SUFFIXES = [
 ACCEPTED_CT_EXACT = {"application/pdf"}
 ACCEPTED_CT_PREFIXES = {"image/"}  # any image/*
 
-# Global GCS client and bucket handle (initialized in lifespan)
+# Global Genai, GCS client and bucket handle (initialized in lifespan)
+app.state.genai_client = None
 storage_client: storage.Client | None = None
 bucket: storage.Bucket | None = None
 
@@ -140,10 +140,9 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global genai_client, storage_client, bucket
-    # Startup
-    genai_client = genai.Client(vertexai=True, project=GC_PROJECT, location="us-west1")
     global storage_client, bucket
+    # Startup
+    app.state.genai_client = genai.Client(vertexai=True, project=GC_PROJECT, location="us-west1")
     storage_client = storage.Client()
     bucket = storage_client.bucket(GCS_BUCKET)
 
@@ -156,7 +155,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown (nothing special; keep for symmetry)
-    genai_client = None
+    app.state.genai_client = None
     storage_client = None
     bucket = None
 
@@ -174,7 +173,6 @@ async def invoke(payload: dict, background_tasks: BackgroundTasks):
     request_id = str(uuid4())
 
     init: GraphState = {
-        "genai_client": genai_client,
         "request_id": request_id,
         "doc_gcs_uri": doc_gcs_uri,
         "metadata": metadata,
@@ -199,7 +197,7 @@ async def invoke(payload: dict, background_tasks: BackgroundTasks):
         )
         try:
             result = await app.state.graph.ainvoke(
-                init, config={"configurable": {"thread_id": request_id}}
+                init, config={"configurable": {"thread_id": request_id, "genai_client": app.state.genai_client}}
             )
             result["status"] = "FINISHED"
             result["updated_at"] = now_iso()
