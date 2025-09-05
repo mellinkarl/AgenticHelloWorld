@@ -9,6 +9,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Query
 from fastapi.responses import JSONResponse
+from google import genai
 from google.cloud import storage
 
 from ..state import GraphState, default_runtime_block, frontend_view
@@ -20,12 +21,16 @@ app.state.graph = build_graph()
 app.state.store = InMemoryStore()
 
 # ---- GCS environment configuration ----
+GC_PROJECT = os.environ.get("GC_PROJECT", "aime-hello-world")  # required (Project ID of Google Cloud Project)
+GCS_PREFIX = os.environ.get("GCS_PREFIX", "amie/pdf/")  # default prefix for uploaded PDFs
+SIGNED_URL_TTL_SECONDS = int(os.environ.get("SIGNED_URL_TTL_SECONDS", "3600"))  # default: 1h
 GCS_BUCKET = os.environ.get("GCS_BUCKET", "aime-hello-world-amie-uswest1")
 GCS_PREFIX = os.environ.get("GCS_PREFIX", "amie/tmp/")
 SIGNED_URL_TTL_SECONDS = int(os.environ.get("SIGNED_URL_TTL_SECONDS", str(7 * 24 * 3600)))
 
 if not GCS_BUCKET:
     raise RuntimeError("Env GCS_BUCKET is required")
+
 
 # ---- Accepted types: PDF and images ----
 ACCEPTED_SUFFIXES = [
@@ -34,9 +39,12 @@ ACCEPTED_SUFFIXES = [
 ACCEPTED_CT_EXACT = {"application/pdf"}
 ACCEPTED_CT_PREFIXES = {"image/"}  # any image/*
 
-# Global GCS client and bucket handle (initialized in lifespan)
+# Global Genai, GCS client and bucket handle (initialized in lifespan)
+app.state.genai_client = None
 storage_client: storage.Client | None = None
 bucket: storage.Bucket | None = None
+
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -132,6 +140,8 @@ from contextlib import asynccontextmanager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global storage_client, bucket
+    # Startup
+    app.state.genai_client = genai.Client(vertexai=True, project=GC_PROJECT, location="us-west1")
     storage_client = storage.Client()
     bucket = storage_client.bucket(GCS_BUCKET)
 
@@ -143,6 +153,8 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    # Shutdown (nothing special; keep for symmetry)
+    app.state.genai_client = None
     storage_client = None
     bucket = None
 
@@ -184,7 +196,7 @@ async def invoke(payload: dict, background_tasks: BackgroundTasks):
         )
         try:
             result = await app.state.graph.ainvoke(
-                init, config={"configurable": {"thread_id": request_id}}
+                init, config={"configurable": {"thread_id": request_id, "genai_client": app.state.genai_client}}
             )
             result["status"] = "FINISHED"
             result["updated_at"] = now_iso()
