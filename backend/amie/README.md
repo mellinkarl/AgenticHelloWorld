@@ -225,85 +225,43 @@ Key dependencies include:
 
 ## 🚧 Development Status
 
-### ✅ Completed
-
-- [x] Basic architecture setup
-- [x] Agent pipeline framework
-- [x] Conditional routing logic (IDCA → NAA/AA)
-- [x] API interface design
-- [x] State management system
-- [x] Basic error handling
-
 ### 🔄 In Progress
 
-- [ ] LLM node integration
-- [ ] Google Cloud storage optimization
-- [ ] Real agent logic implementation
+- [ ] Real agent logic implementation (IA, IDCA, NAA, AA)  
+  - [x] IA  
+  - [x] IDCA  
+  - [ ] NAA  
+  - [ ] AA  
+- [ ] LLM model initialization in `main`  
+- [ ] Config setup  
+- [ ] Switch to GenAI backend  
 
-### 📋 Planned
+## #📌 Planned
 
-- [ ] Auto-deployment configuration
-- [ ] Performance monitoring
-- [ ] User authentication
-- [ ] Batch processing support
+- [ ] Auto-deployment configuration  
+- [ ] Performance monitoring  
+- [ ] User authentication  
+- [ ] Batch processing support  
 
 ## 🧪 Testing
-
-```bash
-# Run tests
-pytest
-
-# Run specific tests
-pytest tests/test_agents/
-
-# Generate coverage report
-pytest --cov=app tests/
-```
+ NONE
 
 ## 📦 Deployment
+ NONE
 
 ### Docker Deployment
-
-```bash
-# Build image
-docker build -t amie-api .
-
-# Run container
-docker run -p 8000:8000 amie-api
-```
+ NONE
 
 ### Google Cloud Run
-
-```bash
-# Deploy to Cloud Run
-gcloud run deploy amie-api \
-  --image gcr.io/PROJECT_ID/amie-api \
-  --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated
-```
+ NONE
 
 ## 🤝 Contributing
 
 Issues and Pull Requests are welcome!
 
-### Development Guide
-
-1. Fork the project
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
 ## 📄 License
 
 This project is licensed under the MIT License.
-
-## 👨‍💻 Author
-
-**Harry**  
-*2025-08-16*
-
 ---
 
 ## 📚 Related Documentation
