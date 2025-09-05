@@ -87,10 +87,23 @@ pip install -r requirements.txt
 ```bash
 gcloud auth application-default login
 gcloud auth application-default set-quota-project aime-hello-world
+gcloud config set project aime-hello-world
+
 ```
+
+##### if not:
+```bash
+gcloud storage buckets create gs://aime-hello-world-amie-uswest1 \
+  --location=us-west1 \
+  --uniform-bucket-level-access
+```
+
 #### 5.1.1 Onetime use
 ```bash
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/amie-agent-sa.json
+export GOOGLE_APPLICATION_CREDENTIALS=/Users/harryzhang/git/AgenticHelloWorld/backend/.keys/aime-hello-world-2cd68fc662f2.json
+# export GCS_BUCKET=aime-hello-world-amie-uswest1
+# export GCS_PREFIX=uploads/tmp
+# export SIGNED_URL_TTL_SECONDS=3600
 ```
 
 #### 5.1.2 revert Onetime use
@@ -100,8 +113,8 @@ unset GOOGLE_APPLICATION_CREDENTIALS
 
 #### 5.3 service
 ```bash
-# Disable Python bytecode cache
-PYTHONDONTWRITEBYTECODE=1 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+PYTHONDONTWRITEBYTECODE=1 uvicorn amie.app.main:app --host 0.0.0.0 --port 8000 --reload
+# PYTHONDONTWRITEBYTECODE=1 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 ### 6. Access API Documentation
@@ -110,6 +123,25 @@ PYTHONDONTWRITEBYTECODE=1 uvicorn app.main:app --reload --host 127.0.0.1 --port 
 - **ReDoc**: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
 
 ## 📡 API Endpoints
+
+### Upload file (only accept .pdf and image format)
+
+#### Local Bcakend Test
+```bash
+curl -F "file=@/Users/harryzhang/git/AgenticHelloWorld/test_Docs/2507.15693v1.pdf" http://localhost:8000/upload-file 
+# + "return_signed_url=true" will return signed_url
+
+curl -F "file=@/path/to/image.png" http://localhost:8000/upload-file
+```
+
+##### response:
+```json
+{"bucket":"aime-hello-world-amie-uswest1","object":"amie/tmp/51244eb813534209aac63841218bf44c.pdf","gs_url":"gs://aime-hello-world-amie-uswest1/amie/tmp/51244eb813534209aac63841218bf44c.pdf","content_type":"application/pdf","size":36593100,"lifecycle":{"delete_after_days":7,"matches_prefix":"amie/tmp/","matches_suffix":[".pdf",".png",".jpg",".jpeg",".webp",".gif",".bmp",".tiff",".tif"]},"signed_url":"https://storage.googleapis.com/aime-hello-world-amie-uswest1/amie/tmp/51244eb813534209aac63841218bf44c.pdf?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=amie-agent-sa%40aime-hello-world.iam.gserviceaccount.com%2F20250904%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20250904T013331Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=82e6f985a6b3dbde5950524036ebd51ff605bf9709252e62b63ac0111136cc100835fc060f4d1fa5a8ccb770b0470bce7321dc3604e073b62a9c392e08f41f04da20ec5d9ac9339c037b5986e2294114f197b90fd13b861c95a5619adfb908a0acdfd8688bfee802b36e3c383659557fb3a38bc6b5797f4c83dbd42cf949f29cb065a90d45ceecd7fcfe4b62b715df38b2e0b6b426f8bbac0b88b2419239582bd88b7b4b7d0d81b01f433f72f6512e1f4f1badc69c9956681c95fa19a79857f2d0a4fc02023643f4911a02c4e71a12ee2da2261e21c67bbfd21d46d5f60271892d068dd486f3f59b733a012a624898c0d43b1835e734cf69c1cece2644b3bf6f","signed_url_expires_in":604800,"suggested_invoke_payload":{"gcs_url":"gs://aime-hello-world-amie-uswest1/amie/tmp/51244eb813534209aac63841218bf44c.pdf","metadata":{"source":"upload-file"}}}%
+```
+#### Frontend use GET_URL to directely submit to GCS
+```
+N/A
+```
 
 ### Submit Document Analysis Request
 
@@ -122,7 +154,7 @@ POST /invoke
 curl -X POST "http://127.0.0.1:8000/invoke" \
      -H "Content-Type: application/json" \
      -d '{
-           "gcs_url": "gs://bucket/document.pdf",
+           "gcs_url": "gs://aime-hello-world-amie-uswest1/amie/tmp/51244eb813534209aac63841218bf44c.pdf",
            "metadata": {
              "author": "John Smith",
              "field": "Artificial Intelligence",
@@ -135,52 +167,46 @@ curl -X POST "http://127.0.0.1:8000/invoke" \
 **Response Example:**
 ```json
 {
-  "request_id": "068dae74-0218-43ed-8482-d0d271e4bb99"
+  "request_id": "b060d513-13c2-4d86-8c88-8f602bffe052"
 }
 ```
 
 ### Query Processing Status
 
 ```bash
-GET /state/{request_id}
+curl -X GET http://127.0.0.1:8000/state/{b060d513-13c2-4d86-8c88-8f602bffe052}
 ```
 
 **Response Example:**
 ```json
-{
-  "request_id": "068dae74-0218-43ed-8482-d0d271e4bb99",
-  "doc_uri": "gs://bucket/document.pdf",
-  "metadata": {
-    "author": "John Smith",
-    "field": "Artificial Intelligence"
-  },
-  "status": "FINISHED",
-  "idca": {
-    "status": "present",
-    "summary": "This research proposes a new deep learning architecture",
-    "fields": ["Machine Learning", "Deep Learning"],
-    "reasoning": "Innovative improvements based on Transformer"
-  },
-  "novelty": {
-    "novel": true,
-    "matches": [],
-    "reasoning": "Significant improvements over existing methods"
-  },
-  "report": {
-    "status": "COMPLETED",
-    "note": "Analysis complete, document shows innovation"
-  }
-}
+{"request_id":"b060d513-13c2-4d86-8c88-8f602bffe052","status":"FINISHED","created_at":"2025-09-04T02:45:55.127925+00:00","updated_at":"2025-09-04T02:45:56.306889+00:00","report":{"ingestion":{},"idca":{"status":"implied","summary":"Dummy IDCA summary","fields":["Robotics","Perception"],"reasoning":"Analyzed source: gs://aime-hello-world-amie-uswest1/amie/tmp/51244eb813534209aac63841218bf44c.pdf"},"novelty":{},"verdict":"UNDECIDED (dummy)"}}%
 ```
 
 ### Debug State Query
 
 ```bash
-GET /debug_state/{request_id}
+curl -X GET http://127.0.0.1:8000/debug_state/{4f898083-4384-4877-b8d5-8a364fca7986}
 ```
-
+#### Example output:
+```json
+{"messages":[],"documents":[],"generation":null,"attempted_generations":0,"request_id":"4f898083-4384-4877-b8d5-8a364fca7986","doc_gcs_uri":"gs://aime-hello-world-amie-uswest1/amie/tmp/51244eb813534209aac63841218bf44c.pdf","doc_local_uri":"file:///var/folders/r5/d0kzcw217pqd9tdz0cxr9rk40000gn/T/amie/4f898083-4384-4877-b8d5-8a364fca7986/document.pdf","metadata":{"author":"John Smith","field":"Artificial Intelligence","journal":"Nature","year":2024},"status":"FINISHED","created_at":"2025-09-04T03:41:35.809359+00:00","updated_at":"2025-09-04T03:41:37.614594+00:00","runtime":{"ia":{"status":"FINISHED","route":[]},"idca":{"status":"PENDING","route":[]},"naa":{"status":"PENDING","route":[]},"aa":{"status":"PENDING","route":[]}},"artifacts":{"ia":{"ok":true,"doc_uri":"gs://aime-hello-world-amie-uswest1/amie/tmp/51244eb813534209aac63841218bf44c.pdf","storage":"gcs","bucket":"aime-hello-world-amie-uswest1","object":"amie/tmp/51244eb813534209aac63841218bf44c.pdf","size":36593100,"content_type":"application/pdf","updated_iso":"2025-09-04T01:33:31.542000+00:00","doc_local_uri":"file:///var/folders/r5/d0kzcw217pqd9tdz0cxr9rk40000gn/T/amie/4f898083-4384-4877-b8d5-8a364fca7986/document.pdf","is_pdf":true},"idca":{"status":"implied","summary":"Dummy IDCA summary","fields":["Robotics","Perception"],"reasoning":"Analyzed source: None"},"report":{"ingestion":{},"idca":{"status":"implied","summary":"Dummy IDCA summary","fields":["Robotics","Perception"],"reasoning":"Analyzed source: None"},"novelty":{},"verdict":"UNDECIDED (dummy)"}},"internals":{"ia":{"used_client":"google-cloud-storage","cleanup_hint":"/var/folders/r5/d0kzcw217pqd9tdz0cxr9rk40000gn/T/amie/4f898083-4384-4877-b8d5-8a364fca7986"},"idca":{"model_version":"idca-dummy-0","debug":"ok"},"naa":{},"aa":{"weights":{"idca":0.5,"naa":0.5},"merge_policy":"dummy-avg"}},"errors":[],"logs":["IA: downloaded object from GCS and cached to local temp. gcs=gs://aime-hello-world-amie-uswest1/amie/tmp/51244eb813534209aac63841218bf44c.pdf size=36593100B ct=application/pdf updated=2025-09-04T01:33:31.542000+00:00 local=file:///var/folders/r5/d0kzcw217pqd9tdz0cxr9rk40000gn/T/amie/4f898083-4384-4877-b8d5-8a364fca7986/document.pdf. This path is intended for downstream agents during this run; cleanup should remove /var/folders/r5/d0kzcw217pqd9tdz0cxr9rk40000gn/T/amie/4f898083-4384-4877-b8d5-8a364fca7986 after the graph completes.","IDCA: dummy classification done.","AA: dummy aggregation complete."]}%
+```
 Returns complete internal state information for debugging and development.
 
+### local test tmp local file:
+```bash
+ls -lh /var/folders/r5/d0kzcw217pqd9tdz0cxr9rk40000gn/T/amie/4f898083-4384-4877-b8d5-8a364fca7986
+```
+
+### remove tmp cache:
+```bash
+rm -rf /var/folders/r5/d0kzcw217pqd9tdz0cxr9rk40000gn/T/amie/4f898083-4384-4877-b8d5-8a364fca7986
+```
+
+## Agents
+ia.py
+- receive a **doc_gcs_uri** download and save to local tmp dir and put tmp dir to **doc_local_uri**
+- TODO: auto clean up tmp dir after graph end
 ## 🔧 Configuration
 
 ### Environment Variables
@@ -199,85 +225,43 @@ Key dependencies include:
 
 ## 🚧 Development Status
 
-### ✅ Completed
-
-- [x] Basic architecture setup
-- [x] Agent pipeline framework
-- [x] Conditional routing logic (IDCA → NAA/AA)
-- [x] API interface design
-- [x] State management system
-- [x] Basic error handling
-
 ### 🔄 In Progress
 
-- [ ] LLM node integration
-- [ ] Google Cloud storage optimization
-- [ ] Real agent logic implementation
+- [ ] Real agent logic implementation (IA, IDCA, NAA, AA)  
+  - [x] IA  
+  - [x] IDCA  
+  - [ ] NAA  
+  - [ ] AA  
+- [ ] LLM model initialization in `main`  
+- [ ] Config setup  
+- [ ] Switch to GenAI backend  
 
-### 📋 Planned
+## #📌 Planned
 
-- [ ] Auto-deployment configuration
-- [ ] Performance monitoring
-- [ ] User authentication
-- [ ] Batch processing support
+- [ ] Auto-deployment configuration  
+- [ ] Performance monitoring  
+- [ ] User authentication  
+- [ ] Batch processing support  
 
 ## 🧪 Testing
-
-```bash
-# Run tests
-pytest
-
-# Run specific tests
-pytest tests/test_agents/
-
-# Generate coverage report
-pytest --cov=app tests/
-```
+ NONE
 
 ## 📦 Deployment
+ NONE
 
 ### Docker Deployment
-
-```bash
-# Build image
-docker build -t amie-api .
-
-# Run container
-docker run -p 8000:8000 amie-api
-```
+ NONE
 
 ### Google Cloud Run
-
-```bash
-# Deploy to Cloud Run
-gcloud run deploy amie-api \
-  --image gcr.io/PROJECT_ID/amie-api \
-  --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated
-```
+ NONE
 
 ## 🤝 Contributing
 
 Issues and Pull Requests are welcome!
 
-### Development Guide
-
-1. Fork the project
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
 ## 📄 License
 
 This project is licensed under the MIT License.
-
-## 👨‍💻 Author
-
-**Harry**  
-*2025-08-16*
-
 ---
 
 ## 📚 Related Documentation
