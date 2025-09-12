@@ -1,17 +1,24 @@
 # amie/agents/aggregation_agent.py
 # Aggregation Agent
-# Auther: Harry
+# Author: Harry
 # 2025-08-18
 
 import json
 from typing import Dict, Any
+from datetime import datetime, timezone
+
 from langchain_core.runnables import RunnableLambda
 from ..state import GraphState
 
+
+# -------------------------------
+# DUMMY VERSION (kept for testing)
+# -------------------------------
 def aa_node_dummy(state: GraphState) -> Dict[str, Any]:
     """
     Aggregation Agent (dummy):
-    - Reads artifacts from IDCA / NAA and composes a final JSON report.
+    - Just stitches together artifacts without filling missing parts.
+    - Verdict is fixed "UNDECIDED (dummy)".
     """
     arts = state.get("artifacts") or {}
     idca = arts.get("idca") or {}
@@ -22,7 +29,7 @@ def aa_node_dummy(state: GraphState) -> Dict[str, Any]:
         "ingestion": ingestion,
         "idca": idca,
         "novelty": novelty,
-        "verdict": "UNDECIDED (dummy)",  # Your real logic would set a final flag.
+        "verdict": "UNDECIDED (dummy)",
     }
     aa_cache = {
         "weights": {"idca": 0.5, "naa": 0.5},
@@ -35,5 +42,116 @@ def aa_node_dummy(state: GraphState) -> Dict[str, Any]:
         "logs": ["AA: dummy aggregation complete."],
     }
 
-AGGREGATION = RunnableLambda(aa_node_dummy)
 
+# -------------------------------
+# COMPLETE VERSION (default-exported aa_node)
+# -------------------------------
+def _default_ingestion() -> Dict[str, Any]:
+    return {
+        "ok": None,
+        "doc_uri": None,
+        "storage": None,
+        "bucket": None,
+        "object": None,
+        "size": None,
+        "content_type": None,
+        "updated_iso": None,
+        "doc_local_uri": None,
+        "is_pdf": None,
+    }
+
+def _default_idca() -> Dict[str, Any]:
+    return {
+        "status": "unknown",
+        "summary": "",
+        "fields": [],
+        "reasoning": "",
+        "model_version": None,
+    }
+
+def _default_novelty() -> Dict[str, Any]:
+    return {
+        "scores": {
+            "novelty": None,
+            "significance": None,
+            "rigor": None,
+            "clarity": None,
+        },
+        "highlights": [],
+        "risks": [],
+        "summary": "",
+        "reasoning": "",
+        "model_version": None,
+    }
+
+def _safe_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    out = dict(base)
+    for k, v in (override or {}).items():
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            inner = dict(out[k])
+            for ik, iv in v.items():
+                if iv is not None:
+                    inner[ik] = iv
+            out[k] = inner
+        else:
+            if v is not None:
+                out[k] = v
+    return out
+
+def _timestamp_utc_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+def aa_node(state: GraphState) -> Dict[str, Any]:
+    """
+    Aggregation Agent (complete, default):
+    - Ensures ingestion/idca/novelty sections always exist with defaults.
+    - Does not perform any decision logic, verdict fixed "UNDECIDED".
+    """
+    request_id = state.get("request_id")
+    artifacts = state.get("artifacts") or {}
+    ingestion_in = artifacts.get("ingestion") or {}
+    idca_in = artifacts.get("idca") or {}
+    novelty_in = artifacts.get("novelty") or {}
+
+    ingestion = _safe_merge(_default_ingestion(), ingestion_in)
+    idca = _safe_merge(_default_idca(), idca_in)
+    novelty = _safe_merge(_default_novelty(), novelty_in)
+
+    report = {
+        "meta": {
+            "request_id": request_id,
+            "generated_at": _timestamp_utc_iso(),
+            "schema_version": "aa-report-v1",
+        },
+        "ingestion": ingestion,
+        "idca": idca,
+        "novelty": novelty,
+        "verdict": "UNDECIDED",
+    }
+
+    aa_cache = {
+        "mode": "structure-completion-only",
+        "merge_policy": "shallow-default-fill",
+        "inputs_present": {
+            "ingestion": bool(ingestion_in),
+            "idca": bool(idca_in),
+            "novelty": bool(novelty_in),
+        },
+    }
+
+    return {
+        "artifacts": {
+            "report": report,
+            "ingestion": ingestion,
+            "idca": idca,
+            "novelty": novelty,
+        },
+        "internals": {"aa": aa_cache},
+        "logs": [f"AA: complete structure aggregation done. request_id={request_id}"],
+    }
+
+
+# -------------------------------
+# Export
+# -------------------------------
+AGGREGATION = RunnableLambda(aa_node)
