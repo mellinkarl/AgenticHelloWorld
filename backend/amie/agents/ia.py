@@ -121,19 +121,53 @@ def _compose_local_path(request_id: str, ext: str) -> str:
 
 # --------------------------- dummy no-op node (kept for reference) ---------------------------
 
-def ia_node_dummy(state: GraphState) -> Dict[str, Any]:
+def ia_node_dummy(state: GraphState, config=None) -> Dict[str, Any]:
     """
-    No-op IA used for tests.
+    Ingestion Agent (dummy, fixed output):
+    - Does NOT download from GCS or parse PDF.
+    - Always returns a consistent mock artifact with status=FINISHED.
+    - Useful for end-to-end pipeline testing without external dependencies.
     """
-    uri = state.get("doc_uri", "") or state.get("doc_gcs_uri", "") or ""
+    request_id = str(state.get("request_id") or "dummy-request")
+    uri = state.get("doc_gcs_uri", "") or state.get("doc_local_uri", "") or "gs://dummy-bucket/dummy.pdf"
     storage_kind = "gcs" if isinstance(uri, str) and uri.startswith("gs://") else "local"
+
+    # Fake local temp path (not actually written)
+    local_path = f"/tmp/amie/{request_id}/document.pdf"
+    file_uri = f"file://{local_path}"
+
+    print(f"[IA][DUMMY] start | request_id={request_id}")
+    print(f"[IA][DUMMY] fixed uri={uri}")
+    print(f"[IA][DUMMY] using storage={storage_kind}, local_uri={file_uri}")
+    print("[IA][DUMMY] done")
+
+    art = {
+        "ok": True,
+        "doc_uri": uri,
+        "storage": storage_kind,
+        "bucket": "aime-hello-world-amie-uswest1",
+        "object": "amie/tmp/fixed_dummy.pdf",
+        "size": 123456,
+        "content_type": "application/pdf",
+        "updated_iso": "2025-09-12T00:00:00Z",
+        "doc_local_uri": file_uri,
+        "is_pdf": True,
+    }
+
+    cache = {
+        "normalized_uri": uri,
+        "used_client": "dummy",
+        "cleanup_hint": f"/tmp/amie/{request_id}",
+    }
 
     return {
         "runtime":   {"ia": {"status": "FINISHED", "route": []}},
-        "artifacts": {"ia": {"doc_uri": uri, "storage": storage_kind, "ok": True}},
-        "internals": {"ia": {"normalized_uri": uri, "note": "dummy IA completed"}},
-        "logs":      ["IA(dummy): normalized input (no-op)."],
+        "artifacts": {"ia": art},
+        "internals": {"ia": cache},
+        "logs": ["[IA][DUMMY] Emitted fixed mock output (no GCS download)."],
+        "doc_local_uri": file_uri,
     }
+
 
 
 # --------------------------- formal IA with local temp-file caching ---------------------------
@@ -156,28 +190,33 @@ def ia_node(state: GraphState) -> Dict[str, Any]:
            Cleanup is intended at the end of the graph in production.
     """
     request_id = str(state.get("request_id") or "")
-    uri = state.get("doc_gcs_uri") or state.get("doc_uri") or ""
+    uri = state.get("doc_gcs_uri") or state.get("doc_local_uri") or ""
     logs: List[str] = []
+
+    print(f"[IA][0] start | request_id={request_id or 'n/a'}")
+    print(f"[IA][1] input uri={uri or 'None'}")
 
     # Basic guard
     if not (isinstance(uri, str) and uri.startswith("gs://")):
-        msg = "IA: Missing or non-GCS URI; expected field `doc_gcs_uri` or `doc_uri` starting with gs://"
+        msg = "IA: Missing or non-GCS URI; expected field `doc_gcs_uri` or `doc_local_uri` starting with gs://"
         logs.append(msg)
-        print(msg)  # explicit print as requested
+        print(f"[IA][ERR] {msg}")
         return {
             "runtime": {"ia": {"status": "FAILED", "route": []}},
-            "artifacts": {"ia": {"doc_uri": uri, "storage": "unknown", "ok": False}},
+            "artifacts": {"ia": {"doc_local_uri": uri, "storage": "unknown", "ok": False}},
             "internals": {"ia": {"reason": "non-gcs-uri"}},
             "logs": logs,
         }
 
     # Download
     try:
+        print("[IA][2] downloading from GCS …")
         dl = _download_gcs(uri)
+        print(f"[IA][2] download ok={dl.get('ok')} size={dl.get('size')} ct={dl.get('content_type') or 'n/a'}")
     except Exception as e:
         msg = f"IA: exception during download: {e}"
         logs.append(msg)
-        print(msg)
+        print(f"[IA][ERR] {msg}")
         return {
             "runtime": {"ia": {"status": "FAILED", "route": []}},
             "artifacts": {"ia": {"doc_uri": uri, "storage": "gcs", "ok": False}},
@@ -186,9 +225,10 @@ def ia_node(state: GraphState) -> Dict[str, Any]:
         }
 
     if not dl["ok"] or not isinstance(dl.get("data"), (bytes, bytearray)):
-        msg = f"IA: download failed: {dl.get('error')}"
+        err = dl.get("error")
+        print(f"[IA][ERR] download failed: {err}")
+        msg = f"IA: download failed: {err}"
         logs.append(msg)
-        print(msg)
         art = {
             "doc_uri": uri,
             "storage": "gcs",
@@ -212,13 +252,16 @@ def ia_node(state: GraphState) -> Dict[str, Any]:
     ext = _ext_from_ct_or_name(ct, obj_name)
     data_bytes: bytes = bytes(dl["data"])
 
+    print(f"[IA][3] detect ext={ext} ct={ct or 'n/a'} name={obj_name or 'n/a'}")
     if ext == ".pdf" or ct.lower() == "application/pdf" or obj_name.lower().endswith(".pdf"):
+        print("[IA][3] PDF detected, validating with PyMuPDF …")
         try:
             _assert_pdf_or_raise(data_bytes)
+            print("[IA][3] PDF validation: OK")
         except Exception:
             msg = "IA: file downloaded but not a valid PDF (PyMuPDF open failed)"
             logs.append(msg)
-            print(msg)
+            print(f"[IA][ERR] {msg}")
             art = {
                 "doc_uri": uri,
                 "storage": "gcs",
@@ -239,14 +282,16 @@ def ia_node(state: GraphState) -> Dict[str, Any]:
 
     # Persist to local temp storage (container)
     try:
+        print("[IA][4] writing local temp file …")
         local_path = _compose_local_path(request_id or "unknown", ext)
         with open(local_path, "wb") as f:
             f.write(data_bytes)
         file_uri = f"file://{os.path.abspath(local_path)}"
+        print(f"[IA][4] wrote to {file_uri}")
     except Exception as e:
         msg = f"IA: failed to write local temp file: {e}"
         logs.append(msg)
-        print(msg)
+        print(f"[IA][ERR] {msg}")
         art = {
             "doc_uri": uri,
             "storage": "gcs",
@@ -279,10 +324,10 @@ def ia_node(state: GraphState) -> Dict[str, Any]:
     }
     internals: Dict[str, Any] = {
         "used_client": "google-cloud-storage",
-        "cleanup_hint": os.path.dirname(local_path),  # directory to remove at graph end
+        "cleanup_hint": os.path.dirname(local_path),
     }
 
-    # Human-friendly log (and explicit print ~300 chars)
+    # Human-friendly log (and explicit print)
     summary = (
         f"IA: downloaded object from GCS and cached to local temp. "
         f"gcs=gs://{dl.get('bucket')}/{obj_name} size={dl.get('size')}B ct={ct or 'n/a'} "
@@ -291,9 +336,9 @@ def ia_node(state: GraphState) -> Dict[str, Any]:
         f"cleanup should remove {internals['cleanup_hint']} after the graph completes."
     )
     logs.append(summary)
-    print(summary)
+    print(f"[IA][5] success | local_uri={file_uri}")
 
-    # Patch GraphState; note top-level doc_local_uri is set for downstream agents.
+    # Patch GraphState
     patch: Dict[str, Any] = {
         "runtime": {"ia": {"status": "FINISHED", "route": []}},
         "artifacts": {"ia": art},
@@ -302,7 +347,6 @@ def ia_node(state: GraphState) -> Dict[str, Any]:
         "doc_local_uri": file_uri,
     }
     return patch
-
 
 # --------------------------- default export ---------------------------
 
