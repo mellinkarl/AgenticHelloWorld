@@ -12,6 +12,72 @@ from ..state import GraphState
 
 model = "gemini-2.0-flash-lite-001"
 
+# ----------------- Dummy Present Version -----------------
+
+def idca_node_dummy(state: GraphState, config=None) -> Dict[str, Any]:
+    """
+    Invention Detection & Classification Agent (mock, always 'present'):
+    - Returns a fixed example output for testing downstream agents (NAA/AA).
+    - Does not call LLM.
+    """
+    print("[IDCA][DUMMY] Returning fixed 'present' mock output")
+
+    # Mock Step1: metadata + fields
+    step1 = {
+        "title": "Strong, Accurate, and Low-Cost Robot Manipulator",
+        "authors": [
+            "Georges Chebly",
+            "Spencer Little",
+            "Nisal Perera",
+            "Aliya Abedeen",
+            "Ken Suzuki",
+            "Donghyun Kim"
+        ],
+        "manuscript_type": "research paper",
+        "fields_needed": ["Robotics", "Mechanical Design", "3D Printing", "Control Systems", "Education"],
+    }
+
+    # Mock Step2: invention classification (always present)
+    step2 = {
+        "patent_type": "product",
+        "status": "present",
+        "reasoning": (
+            "The manuscript describes a concrete product—a 3D-printable 6-DoF robotic arm (Forte) "
+            "featuring a capstan-based cable drive, belt-cable hybrid transmission, and optimized "
+            "3D-printed structures. These are specific technical implementations with clear novelty."
+        ),
+    }
+
+    # Mock Step3: summary (technical detail for semantic search)
+    step3 = {
+        "summary": (
+            "Forte is a fully 3D-printed, 6-DoF robotic manipulator designed to deliver near industrial-"
+            "grade precision (0.467 mm repeatability) and payload capacity (0.63 kg) at a material cost "
+            "under $215. Key innovations include: a capstan-based cable drive for low backlash and high "
+            "torque efficiency; a belt-cable hybrid transmission for shoulder and elbow joints; vented "
+            "screw tensioning for easy assembly; and topology-optimized PLA structures for stiffness "
+            "and lightweight performance. Three motors at the elbow reduce torque load, enabling "
+            "competitive performance for robotics education and research at low cost."
+        )
+    }
+
+    idca_art = {
+        **step1,
+        **step2,
+        **step3,
+    }
+
+    idca_cache = {
+        "model_version": "idca-dummy-present-v1",
+    }
+
+    return {
+        "artifacts": {"idca": idca_art},
+        "internals": {"idca": idca_cache},
+        "runtime": {"idca": {"status": "FINISHED", "route": []}},
+        "logs": ["[IDCA][DUMMY] Emitted fixed 'present' output"],
+    }
+
 def call_LLM(genai_client: genai.Client, model_name: str, content: types.ContentListUnionDict, conf: types.GenerateContentConfigOrDict | None = None) -> dict | None:
     try:
 
@@ -23,7 +89,7 @@ def call_LLM(genai_client: genai.Client, model_name: str, content: types.Content
 
         text = resp.text
         return json.loads(text)
-    
+
     except Exception as e:
         print(f"LLM error: {e}")
         return None
@@ -158,4 +224,5 @@ def idca_node(state: GraphState, config) -> Dict[str, Any]:
 
     return generate_output("Invention detected", step1, step2, step3)
 
-INVENTION_D_C = RunnableLambda(idca_node)
+INVENTION_D_C = RunnableLambda(idca_node_dummy)
+
