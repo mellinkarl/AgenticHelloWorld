@@ -177,33 +177,50 @@ async def invoke(payload: dict, background_tasks: BackgroundTasks):
         "created_at": now_iso(),
         "updated_at": now_iso(),
         "messages": [],
-        "documents": [],
-        "generation": None,
-        "attempted_generations": 0,
         "runtime": default_runtime_block(),
         "artifacts": {},
         "internals": {"ia": {}, "idca": {}, "naa": {}, "aa": {}},
-        "errors": [],
-        "logs": [],
     }
     await app.state.store.save_state(request_id, init)
 
     async def run_graph():
+        # Mark as RUNNING (global)
         await app.state.store.update_state(
             request_id, {"status": "RUNNING", "updated_at": now_iso()}
         )
+
         try:
+            # Run the graph
             result = await app.state.graph.ainvoke(
-                init, config={"configurable": {"thread_id": request_id, "genai_client": app.state.genai_client}}
+                init,
+                config={"configurable": {
+                    "thread_id": request_id,
+                    "genai_client": app.state.genai_client
+                }},
             )
+
+            # Append main-level success message
+            msgs = result.get("message")
+            if not isinstance(msgs, list):
+                msgs = []
+            msgs.append("[main] graph finished successfully.")
+
             result["status"] = "FINISHED"
             result["updated_at"] = now_iso()
+            result["message"] = msgs
+
             await app.state.store.save_state(request_id, result)
+
         except Exception as e:
-            failed = await app.state.store.get_state(request_id)
-            (failed.setdefault("errors", [])).append(str(e))
-            failed["status"] = "FAILED"
-            failed["updated_at"] = now_iso()
+            # Do not fetch previous state; just record failure info
+            failed = {
+                "request_id": request_id,
+                "status": "FAILED",
+                "updated_at": now_iso(),
+                "message": [f"[main] graph failed: {str(e)}"],
+                # Optionally, pass through doc_gcs_uri if available in init
+                "doc_gcs_uri": init.get("doc_gcs_uri")
+            }
             await app.state.store.save_state(request_id, failed)
 
     background_tasks.add_task(run_graph)
