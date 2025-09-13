@@ -232,7 +232,9 @@ async def invoke(payload: dict, background_tasks: BackgroundTasks):
                 init,
                 config={"configurable": {
                     "thread_id": request_id,
-                    "genai_client": app.state.genai_client
+                    "genai_client": app.state.genai_client,
+                    "cpc_levels": app.state.cpc_levels,
+                    "cpc_strings": app.state.cpc_strings
                 }},
             )
 
