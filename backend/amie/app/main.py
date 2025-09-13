@@ -16,6 +16,9 @@ from ..state import GraphState, default_runtime_block, frontend_view
 from ..graph import build_graph
 from .store import InMemoryStore
 
+from ..agents.utils.cpc_loader import load_cpc_levels
+
+
 app = FastAPI(title="AMIE API")
 app.state.graph = build_graph()
 app.state.store = InMemoryStore()
@@ -143,6 +146,21 @@ async def lifespan(app: FastAPI):
     storage_client = storage.Client()
     bucket = storage_client.bucket(GCS_BUCKET)
 
+    # --- Load CPC levels (dict1, dict2) at startup ---
+    try:
+        dict1, dict2 = load_cpc_levels()  # reads backend/amie/agents/utils/cpc_levels.npy
+        app.state.cpc_levels = dict1  # {"level1": {...}, "level2": {...}}
+        app.state.cpc_strings = dict2  # {"level1": "A: ...\nB: ...", "level2": {"A": "A01: ...\n..."}}
+        # (optional) quick sanity log
+        sec_cnt = len(dict1.get("level1", {}))
+        cls_cnt = sum(len(v) for v in dict1.get("level2", {}).values())
+        print(f"[CPC] Loaded: sections={sec_cnt}, classes={cls_cnt}")
+    except Exception as e:
+        # Don’t crash the app if CPC data is missing; just warn and keep empty.
+        print(f"[WARN] CPC load failed: {e}")
+        app.state.cpc_levels = {"level1": {}, "level2": {}}
+        app.state.cpc_strings = {"level1": "", "level2": {}}
+
     try:
         # Align cleanup to 7 days so V4 signed URL can match it
         _ensure_delete_lifecycle(bucket, GCS_PREFIX, days=7, suffixes=ACCEPTED_SUFFIXES)
@@ -157,6 +175,16 @@ async def lifespan(app: FastAPI):
     bucket = None
 
 app.router.lifespan_context = lifespan
+
+# ----------------- load_cpc_levels Debug -----------------
+
+@app.get("/debug/cpc")
+async def debug_cpc():
+    return {
+        "level1_keys": sorted(list(app.state.cpc_levels.get("level1", {}).keys())),
+        "level2_sections": sorted(list(app.state.cpc_levels.get("level2", {}).keys())),
+        "level1_string_preview": app.state.cpc_strings.get("level1", "").splitlines()[:5],
+    }
 
 # ----------------- Original AMIE logic -----------------
 
