@@ -4,7 +4,7 @@
 # 2025-09-12
 
 import json
-from typing import Dict, Any, List, Optional, Literal, Callable
+from typing import Dict, Any, List, Optional, Literal, Callable, Tuple
 from datetime import datetime, timezone
 
 from google import genai  # noqa: F401
@@ -15,13 +15,17 @@ from ..state import GraphState
 from .schema.naa_schema import (
     SCHEMA_INVENTION_TYPE,
     SCHEMA_METHOD_DETAILS,
-    SCHEMA_STRUCTURE_DETAILS,
+    SCHEMA_MACHINE_DETAILS,
+    SCHEMA_MANUFACTURE_DETAILS,
+    SCHEMA_COMPOSITION_DETAILS,
+    SCHEMA_DESIGN_DETAILS,
     SCHEMA_CPC_L1_CODES,   # List[str]
     SCHEMA_CPC_L2_DICT,    # Dict[str, str]
 )
 from .prompt.naa_prompt import (
-    build_prompt, build_prompt_sys,
+    build_prompt_sys,
     TPL_CPC_L1, TPL_CPC_L2, TPL_INNOVATION_TYPE,
+    TPL_DETAIL_METHOD, TPL_DETAIL_MACHINE, TPL_DETAIL_MANUFACTURE, TPL_DETAIL_COMPOSITION, TPL_DETAIL_DESIGN,
     format_innovation_taxonomy_text,
     SYS_PATENT_CLASSIFIER,
 )
@@ -69,8 +73,6 @@ def _empty_artifacts(message_note: str = "") -> Dict[str, Any]:
         "detailed_checks": [],
         "invention_type": "none",
         "invention_details": {
-            "method_steps": [],
-            "structure_components": [],
             "notes": message_note or "no details (placeholder)",
         },
         "queries": [],
@@ -106,6 +108,40 @@ def call_llm_json(
         resp = client.models.generate_content(
             model=model,
             contents=[prompt_text],
+            config=types.GenerateContentConfig(
+                response_schema=schema,
+                response_mime_type="application/json",
+            ),
+        )
+        text = getattr(resp, "text", None)
+        if not text:
+            return {}
+        return json.loads(text)
+    except Exception:
+        return {}
+
+
+def call_llm_json_with_pdf(
+    *,
+    client: "genai.Client",
+    model: str,
+    prompt_text: str,
+    schema: Dict[str, Any],
+    file_uri: Optional[str],
+    mime_type: str = "application/pdf",
+) -> Any:
+    """
+    PDF + instruction JSON call. Returns parsed JSON, or {} on error.
+    If file_uri is falsy, falls back to text-only call.
+    """
+    try:
+        contents = []
+        if file_uri:
+            contents.append(types.Part.from_uri(file_uri=file_uri, mime_type=mime_type))
+        contents.append(prompt_text)
+        resp = client.models.generate_content(
+            model=model,
+            contents=contents,
             config=types.GenerateContentConfig(
                 response_schema=schema,
                 response_mime_type="application/json",
@@ -166,6 +202,25 @@ def _run_sources_pipeline(sources: List[SourceType], ctx: Dict[str, Any]) -> Lis
 
 
 # ---------------------------------------------------------------------
+# Detail extraction routing
+# ---------------------------------------------------------------------
+
+def _detail_prompt_and_schema(itype: InnovationType) -> Tuple[str, Dict[str, Any]]:
+    if itype == "process":
+        return TPL_DETAIL_METHOD, SCHEMA_METHOD_DETAILS
+    if itype == "machine":
+        return TPL_DETAIL_MACHINE, SCHEMA_MACHINE_DETAILS
+    if itype == "manufacture":
+        return TPL_DETAIL_MANUFACTURE, SCHEMA_MANUFACTURE_DETAILS
+    if itype == "composition":
+        return TPL_DETAIL_COMPOSITION, SCHEMA_COMPOSITION_DETAILS
+    if itype == "design":
+        return TPL_DETAIL_DESIGN, SCHEMA_DESIGN_DETAILS
+    # Fallback
+    return TPL_DETAIL_METHOD, SCHEMA_METHOD_DETAILS
+
+
+# ---------------------------------------------------------------------
 # Main node
 # ---------------------------------------------------------------------
 
@@ -175,7 +230,8 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
       1) CPC Level-1 classification (letters) via LLM.
       2) CPC Level-2 classification (dict{class_code:title}) via LLM using Level-1 sections.
       3) InnovationType classification via LLM using (summary + Level-2 string + taxonomy descriptions).
-      4) Sources pipeline scaffold (no-op).
+      4) Detail extraction via LLM using (doc_gcs_uri + summary + InnovationType + description).
+      5) Sources pipeline scaffold (no-op).
     """
     try:
         # 0) Global precheck
@@ -189,6 +245,12 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
 
         # 2) Required inputs from state/config
         summary: str = state["artifacts"]["idca"]["summary"]
+        # doc URI can be stored in different places depending on previous pipeline stages
+        src_uri = (
+            state.get("artifacts", {}).get("idca", {}).get("doc_gcs_uri")
+            or state.get("doc_gcs_uri")
+            or state.get("doc_gcs_url")  # alternative key spelling
+        )
         cfg = (config or {}).get("configurable", {}) if isinstance(config, dict) else {}
 
         # -- EARLY: LLM client presence check --
@@ -238,45 +300,80 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
             level2_dict = result_l2
 
         # 6) InnovationType classification
-        # Build level2_str by concatenating "CODE: TITLE" lines, as requested.
         level2_str = "\n".join(f"{k}: {v}" for k, v in level2_dict.items()) if level2_dict else ""
         taxonomy_text = format_innovation_taxonomy_text(INNOVATION_TYPE_DESCRIPTIONS)
-
-        # Combine summary + CPC Level-2 context.
         extended_summary = summary if not level2_str else f"{summary}\n\n[CPC Level-2 selections]\n{level2_str}"
 
-        prompt_inovationType = build_prompt_sys(
+        prompt_innov = build_prompt_sys(
             SYS_PATENT_CLASSIFIER,
             TPL_INNOVATION_TYPE,
             extended_summary,
             taxonomy_text,
         )
-        result_innovation_type = call_llm_json(
+        result_innov = call_llm_json(
             client=client,
             model=model_name,
-            prompt_text=prompt_inovationType,
+            prompt_text=prompt_innov,
             schema=SCHEMA_INVENTION_TYPE,
         )
 
         invention_type: InnovationType = "none"
-        if isinstance(result_innovation_type, dict) and isinstance(result_innovation_type.get("invention_type"), str):
-            candidate = result_innovation_type["invention_type"].strip().lower()
+        if isinstance(result_innov, dict) and isinstance(result_innov.get("invention_type"), str):
+            candidate = result_innov["invention_type"].strip().lower()
             if candidate in {"process", "machine", "manufacture", "composition", "design", "none"}:
                 invention_type = candidate  # type: ignore[assignment]
 
-        # 7) Detail expansion placeholder (to be implemented later)
-        invention_details: Dict[str, Any] = {
-            "method_steps": [],
-            "structure_components": [],
-            "notes": "placeholder-only; no expansion performed",
-        }
+        # 7) Detail extraction for the selected InnovationType (if any)
+        invention_details: Dict[str, Any] = {"notes": "no details (skipped)"}
+        detail_internals: Dict[str, Any] = {"attempted": False, "prompt_key": None, "schema_keys": []}
 
+        assert invention_type != "none", "invention_type == none, IDCA should mark implied"
+        prompt_key, schema_obj = _detail_prompt_and_schema(invention_type)
+        type_desc = INNOVATION_TYPE_DESCRIPTIONS[invention_type]
+        prompt_detail = build_prompt_sys(
+            SYS_PATENT_CLASSIFIER,
+            prompt_key,
+            summary,                 # {0}
+            invention_type,          # {1}
+            type_desc,               # {2}
+            str(src_uri or ""),      # {3}
+        )
+        details_json = call_llm_json_with_pdf(
+            client=client,
+            model=model_name,
+            prompt_text=prompt_detail,
+            schema=schema_obj,
+            file_uri=src_uri,
+        )
+        if isinstance(details_json, dict):
+            invention_details = details_json
+        else:
+            invention_details = {"notes": "unclear"}
+
+        detail_internals = {
+            "attempted": True,
+            "prompt_key": prompt_key,
+            "schema_keys": list(schema_obj.get("properties", {}).keys()),
+            "has_pdf": bool(src_uri),
+            "result_nonempty": bool(invention_details),
+        }
+        print()
+        print()
+        print()
+        print()
+        print()
+        print(details_json)
+        print()
+        print()
+        print()
+        print()
         # 8) Sources pipeline (ordered execution; skeleton only)
         sources_seq: List[SourceType] = _get_sources_sequence(state, cfg)
         pipeline_ctx: Dict[str, Any] = {
             "summary": summary,
             "cpc_level1_codes": level1_codes,
             "cpc_level2_dict": level2_dict,
+            "invention_type": invention_type,
             "now": _now_iso(),
         }
         source_runs = _run_sources_pipeline(sources_seq, pipeline_ctx)
@@ -289,7 +386,7 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
             "invention_details": invention_details,
             "queries": [],
             "sources": sources_seq,  # executed order
-            "model_version": "naa-skel-6",
+            "model_version": "naa-skel-7",
             "generated_at": _now_iso(),
             "input_summary": summary,
             "cpc_level": {
@@ -300,6 +397,7 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
                 "level1": cpc_level1_str,     # newline-joined from config
                 "level2": cpc_level2_map_str, # dict section->newline-joined classes string (from config)
             },
+            "doc_gcs_uri": src_uri or "",
         }
 
         naa_internals: List[Dict[str, Any]] = [
@@ -317,21 +415,21 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
                 "template": TPL_INNOVATION_TYPE,
                 "taxonomy_text": taxonomy_text,
                 "level2_str_len": len(level2_str),
-                "result": result_innovation_type if isinstance(result_innovation_type, dict) else {},
+                "result": result_innov if isinstance(result_innov, dict) else {},
                 "selected_innovation_type": invention_type,
             },
-            {"stage": "sources_pipeline", "sequence": sources_seq, "runs": source_runs},
             {
-                "stage": "detail_expansion",
-                "selected_schema": SCHEMA_METHOD_DETAILS if invention_type == "process" else SCHEMA_STRUCTURE_DETAILS,
+                "stage": "detail_extraction",
+                "info": detail_internals,
             },
+            {"stage": "sources_pipeline", "sequence": sources_seq, "runs": source_runs},
         ]
 
         return {
             "artifacts": {"naa": naa_art},
             "internals": {"naa": naa_internals},
             "runtime": {"naa": {"status": "FINISHED", "route": []}},
-            "message": "naa finished CPC Level-1, Level-2, and InnovationType classification; sources scaffold executed",
+            "message": "naa finished CPC L1/L2, InnovationType, and type-specific detail extraction; sources scaffold executed",
         }
 
     except Exception as e:

@@ -12,6 +12,13 @@ TPL_CPC_L1 = "cpc_l1"
 TPL_CPC_L2 = "cpc_l2"
 TPL_INNOVATION_TYPE = "innovation_type"  # for future use
 
+# Detail extraction templates (one per InnovationType)
+TPL_DETAIL_METHOD = "detail_method"
+TPL_DETAIL_MACHINE = "detail_machine"
+TPL_DETAIL_MANUFACTURE = "detail_manufacture"
+TPL_DETAIL_COMPOSITION = "detail_composition"
+TPL_DETAIL_DESIGN = "detail_design"
+
 _TEMPLATES: Dict[str, str] = {
     # {0} -> summary, {1} -> CPC Level-1 human-readable string
     TPL_CPC_L1: (
@@ -27,8 +34,6 @@ _TEMPLATES: Dict[str, str] = {
     ),
 
     # {0} -> summary, {1} -> concatenated Level-2 options string for chosen Level-1 sections
-    # NOTE: No literal { } braces here to avoid str.format conflicts.
-    # The JSON object shape is enforced by the response schema instead.
     TPL_CPC_L2: (
         "### TASK\n"
         "From the provided CPC Level-2 options, select all classes that apply to the invention.\n\n"
@@ -41,9 +46,7 @@ _TEMPLATES: Dict[str, str] = {
         "If uncertain, return an empty object.\n"
     ),
 
-    # For future: innovation type recognition
     # {0} -> summary, {1} -> taxonomy text
-    # (braces are escaped here so str.format doesn't treat them as placeholders)
     TPL_INNOVATION_TYPE: (
         "### TASK\n"
         "Classify the invention into one of the patentable subject-matter categories.\n\n"
@@ -53,6 +56,121 @@ _TEMPLATES: Dict[str, str] = {
         "{1}\n\n"
         "### OUTPUT\n"
         "Return ONLY a JSON object: {{\"invention_type\": \"process|machine|manufacture|composition|design|none\"}}.\n"
+    ),
+
+    # -----------------------
+    # Detail extraction templates
+    # Each uses: {0}=summary, {1}=type_name, {2}=type_description, {3}=doc_uri (may be empty).
+    # -----------------------
+
+    TPL_DETAIL_METHOD: (
+        "### SYSTEM\n"
+        "- You are a senior patent analyst.\n"
+        "- Goal: extract deterministic, structured method details.\n"
+        "- Output MUST be valid JSON matching the requested schema.\n"
+        "- Use ONLY the provided inputs (PDF + text). If uncertain, return minimal fields.\n\n"
+        "### TASK\n"
+        "The invention type is: {1}.\n"
+        "Type description:\n{2}\n\n"
+        "### INPUTS\n"
+        "Short summary:\n{0}\n\n"
+        "If available, a PDF is attached via URI (may be empty):\n{3}\n\n"
+        "### REQUIRED OUTPUT SHAPE\n"
+        "Return ONLY a JSON object matching the schema fields:\n"
+        "- method_steps: array[string] (chronological, concrete, executable steps)\n"
+        "- assumptions: array[string]\n"
+        "- constraints: array[string]\n"
+        "Be concise, do not invent facts, and prefer quoting terminology from the PDF when unambiguous.\n"
+    ),
+
+    TPL_DETAIL_MACHINE: (
+        "### SYSTEM\n"
+        "- You are a senior patent analyst.\n"
+        "- Goal: extract deterministic, structured machine details.\n"
+        "- Output MUST be valid JSON matching the requested schema.\n"
+        "- Use ONLY the provided inputs (PDF + text). If uncertain, return minimal fields.\n\n"
+        "### TASK\n"
+        "The invention type is: {1}.\n"
+        "Type description:\n{2}\n\n"
+        "### INPUTS\n"
+        "Short summary:\n{0}\n\n"
+        "If available, a PDF is attached via URI (may be empty):\n{3}\n\n"
+        "### REQUIRED OUTPUT SHAPE\n"
+        "Return ONLY a JSON object with fields:\n"
+        "- components: array[object{{name, function, key_specs}}]\n"
+        "- subsystems: array[string]\n"
+        "- connections: array[string]  # how parts interface (mechanical/electrical/data)\n"
+        "- operating_principles: array[string]\n"
+        "- materials: array[string]\n"
+        "- sensors_actuators: array[string]\n"
+        "- constraints: array[string]\n"
+        "Be specific about physical structure and interfaces.\n"
+    ),
+
+    TPL_DETAIL_MANUFACTURE: (
+        "### SYSTEM\n"
+        "- You are a senior patent analyst.\n"
+        "- Goal: extract deterministic details for an article of manufacture.\n"
+        "- Output MUST be valid JSON matching the requested schema.\n"
+        "- Use ONLY the provided inputs (PDF + text). If uncertain, return minimal fields.\n\n"
+        "### TASK\n"
+        "The invention type is: {1}.\n"
+        "Type description:\n{2}\n\n"
+        "### INPUTS\n"
+        "Short summary:\n{0}\n\n"
+        "If available, a PDF is attached via URI (may be empty):\n{3}\n\n"
+        "### REQUIRED OUTPUT SHAPE\n"
+        "Return ONLY a JSON object with fields:\n"
+        "- article_components: array[object{{name, function}}]\n"
+        "- materials: array[string]\n"
+        "- dimensions: array[string]\n"
+        "- manufacturing_steps: array[string]\n"
+        "- assembly: array[string]\n"
+        "- tolerances: array[string]\n"
+        "Focus on the physical article and its fabrication.\n"
+    ),
+
+    TPL_DETAIL_COMPOSITION: (
+        "### SYSTEM\n"
+        "- You are a senior patent analyst.\n"
+        "- Goal: extract deterministic details for a composition of matter.\n"
+        "- Output MUST be valid JSON matching the requested schema.\n"
+        "- Use ONLY the provided inputs (PDF + text). If uncertain, return minimal fields.\n\n"
+        "### TASK\n"
+        "The invention type is: {1}.\n"
+        "Type description:\n{2}\n\n"
+        "### INPUTS\n"
+        "Short summary:\n{0}\n\n"
+        "If available, a PDF is attached via URI (may be empty):\n{3}\n\n"
+        "### REQUIRED OUTPUT SHAPE\n"
+        "Return ONLY a JSON object with fields:\n"
+        "- constituents: array[object{{name, role, amount}}]  # amount can be ranges/percentages\n"
+        "- synthesis_steps: array[string]\n"
+        "- properties: array[string]\n"
+        "- use_cases: array[string]\n"
+        "- constraints: array[string]\n"
+        "Report quantitative details only if present; otherwise omit or be qualitative.\n"
+    ),
+
+    TPL_DETAIL_DESIGN: (
+        "### SYSTEM\n"
+        "- You are a senior patent analyst.\n"
+        "- Goal: extract deterministic details for an ornamental design (design patent).\n"
+        "- Output MUST be valid JSON matching the requested schema.\n"
+        "- Use ONLY the provided inputs (PDF + text). If uncertain, return minimal fields.\n\n"
+        "### TASK\n"
+        "The invention type is: {1}.\n"
+        "Type description:\n{2}\n\n"
+        "### INPUTS\n"
+        "Short summary:\n{0}\n\n"
+        "If available, a PDF is attached via URI (may be empty):\n{3}\n\n"
+        "### REQUIRED OUTPUT SHAPE\n"
+        "Return ONLY a JSON object with fields:\n"
+        "- ornamental_features: array[string]\n"
+        "- views: array[string]  # referenced figures or views, e.g., front, top, perspective\n"
+        "- non_functional_statement: string  # confirm ornamental focus\n"
+        "- claim_scope_note: string  # concise verbal summary of the ornamental claim\n"
+        "Do not speculate about utility; confine to ornamental aspects.\n"
     ),
 }
 

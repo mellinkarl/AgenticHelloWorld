@@ -27,24 +27,90 @@ SCHEMA_METHOD_DETAILS: Dict[str, Any] = {
     "required": ["method_steps"]
 }
 
-SCHEMA_STRUCTURE_DETAILS: Dict[str, Any] = {
+# Used for machine-like physical structures
+SCHEMA_MACHINE_DETAILS: Dict[str, Any] = {
     "type": "object",
     "properties": {
-        "structure_components": {
+        "components": {
             "type": "array",
             "items": {
                 "type": "object",
                 "properties": {
                     "name": {"type": "string"},
                     "function": {"type": "string"},
-                    "relations": {"type": "array", "items": {"type": "string"}}
+                    "key_specs": {"type": "string"}
                 },
                 "required": ["name"]
             }
         },
-        "assembly_principles": {"type": "array", "items": {"type": "string"}}
+        "subsystems": {"type": "array", "items": {"type": "string"}},
+        "connections": {"type": "array", "items": {"type": "string"}},
+        "operating_principles": {"type": "array", "items": {"type": "string"}},
+        "materials": {"type": "array", "items": {"type": "string"}},
+        "sensors_actuators": {"type": "array", "items": {"type": "string"}},
+        "constraints": {"type": "array", "items": {"type": "string"}}
     },
-    "required": ["structure_components"]
+    "required": ["components"]
+}
+
+# Article of manufacture details
+SCHEMA_MANUFACTURE_DETAILS: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "article_components": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "function": {"type": "string"}
+                },
+                "required": ["name"]
+            }
+        },
+        "materials": {"type": "array", "items": {"type": "string"}},
+        "dimensions": {"type": "array", "items": {"type": "string"}},
+        "manufacturing_steps": {"type": "array", "items": {"type": "string"}},
+        "assembly": {"type": "array", "items": {"type": "string"}},
+        "tolerances": {"type": "array", "items": {"type": "string"}}
+    },
+    "required": ["article_components"]
+}
+
+# Composition of matter details
+SCHEMA_COMPOSITION_DETAILS: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "constituents": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "role": {"type": "string"},
+                    "amount": {"type": "string"}
+                },
+                "required": ["name"]
+            }
+        },
+        "synthesis_steps": {"type": "array", "items": {"type": "string"}},
+        "properties": {"type": "array", "items": {"type": "string"}},
+        "use_cases": {"type": "array", "items": {"type": "string"}},
+        "constraints": {"type": "array", "items": {"type": "string"}}
+    },
+    "required": ["constituents"]
+}
+
+# Design patent details
+SCHEMA_DESIGN_DETAILS: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "ornamental_features": {"type": "array", "items": {"type": "string"}},
+        "views": {"type": "array", "items": {"type": "string"}},
+        "non_functional_statement": {"type": "string"},
+        "claim_scope_note": {"type": "string"}
+    },
+    "required": ["ornamental_features"]
 }
 
 # Simplified schema: CPC Level-1 codes as a JSON array of strings.
@@ -62,7 +128,10 @@ SCHEMA_CPC_L2_DICT: Dict[str, Any] = {
 __all__ = [
     "SCHEMA_INVENTION_TYPE",
     "SCHEMA_METHOD_DETAILS",
-    "SCHEMA_STRUCTURE_DETAILS",
+    "SCHEMA_MACHINE_DETAILS",
+    "SCHEMA_MANUFACTURE_DETAILS",
+    "SCHEMA_COMPOSITION_DETAILS",
+    "SCHEMA_DESIGN_DETAILS",
     "SCHEMA_CPC_L1_CODES",
     "SCHEMA_CPC_L2_DICT",
 ]
