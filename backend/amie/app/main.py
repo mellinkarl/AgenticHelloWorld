@@ -23,9 +23,7 @@ app.state.store = InMemoryStore()
 # ---- GCS environment configuration ----
 GC_PROJECT = os.environ.get("GC_PROJECT", "aime-hello-world")  # required (Project ID of Google Cloud Project)
 GCS_PREFIX = os.environ.get("GCS_PREFIX", "amie/pdf/")  # default prefix for uploaded PDFs
-SIGNED_URL_TTL_SECONDS = int(os.environ.get("SIGNED_URL_TTL_SECONDS", "3600"))  # default: 1h
 GCS_BUCKET = os.environ.get("GCS_BUCKET", "aime-hello-world-amie-uswest1")
-GCS_PREFIX = os.environ.get("GCS_PREFIX", "amie/tmp/")
 SIGNED_URL_TTL_SECONDS = int(os.environ.get("SIGNED_URL_TTL_SECONDS", str(7 * 24 * 3600)))
 
 if not GCS_BUCKET:
