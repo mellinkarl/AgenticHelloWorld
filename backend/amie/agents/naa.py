@@ -251,7 +251,7 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
             extended_summary,
             taxonomy_text,
         )
-        result_innovationType = call_llm_json(
+        result_innovation_type = call_llm_json(
             client=client,
             model=model_name,
             prompt_text=prompt_inovationType,
@@ -259,8 +259,8 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
         )
 
         invention_type: InnovationType = "none"
-        if isinstance(result_innovationType, dict) and isinstance(result_innovationType.get("invention_type"), str):
-            candidate = result_innovationType["invention_type"].strip().lower()
+        if isinstance(result_innovation_type, dict) and isinstance(result_innovation_type.get("invention_type"), str):
+            candidate = result_innovation_type["invention_type"].strip().lower()
             if candidate in {"process", "machine", "manufacture", "composition", "design", "none"}:
                 invention_type = candidate  # type: ignore[assignment]
 
@@ -317,7 +317,7 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
                 "template": TPL_INNOVATION_TYPE,
                 "taxonomy_text": taxonomy_text,
                 "level2_str_len": len(level2_str),
-                "result": result_innov if isinstance(result_innov, dict) else {},
+                "result": result_innovation_type if isinstance(result_innovation_type, dict) else {},
                 "selected_innovation_type": invention_type,
             },
             {"stage": "sources_pipeline", "sequence": sources_seq, "runs": source_runs},
