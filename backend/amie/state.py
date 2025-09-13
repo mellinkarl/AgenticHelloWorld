@@ -22,7 +22,6 @@ from langchain_core.messages import AnyMessage
 # 4) Nodes MUST return PATCHES; do NOT mutate state in-place.
 # 5) Reducers:
 #       - artifacts / internals / runtime use dict-union (operator.or_) to merge branches
-#       - logs / errors are append-only (operator.add)
 # 6) Frontend should only receive the final `artifacts.report`. Use `frontend_view(state)`.
 
 # ---- shared enums ----
@@ -57,14 +56,12 @@ class GraphState(TypedDict, total=False):
 
     # ---- LangChain / RAG basics ----
     messages: Annotated[List[AnyMessage], operator.add]
-    documents: List[Document]
-    generation: Any
-    attempted_generations: int
 
     # ---- Invocation basics (injected by API) ----
+    genai_client: Any  # injected by app.state.genai_client
     request_id: str
-    doc_gcs_uri: str
-    doc_local_uri: str
+    doc_gcs_uri: str | None
+    doc_local_uri: str | None
     metadata: Dict[str, Any]
 
     # ---- Orchestration / global UI-facing ----
@@ -80,10 +77,6 @@ class GraphState(TypedDict, total=False):
 
     # ---- Per-agent caches (cross-agent readable; only owner writes), branch-safe union ----
     internals: Annotated[Internals, operator.or_]
-
-    # ---- Diagnostics (append-only) ----
-    errors: Annotated[List[str], operator.add]
-    logs:   Annotated[List[str], operator.add]
 
 
 # ============================= DETAIL COMMENTS =============================
