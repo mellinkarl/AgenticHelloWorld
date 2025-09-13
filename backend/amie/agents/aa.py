@@ -12,38 +12,6 @@ from ..state import GraphState
 
 
 # -------------------------------
-# DUMMY VERSION (kept for testing)
-# -------------------------------
-def aa_node_dummy(state: GraphState) -> Dict[str, Any]:
-    """
-    Aggregation Agent (dummy):
-    - Just stitches together artifacts without filling missing parts.
-    - Verdict is fixed "UNDECIDED (dummy)".
-    """
-    arts = state.get("artifacts") or {}
-    idca = arts.get("idca") or {}
-    novelty = arts.get("novelty") or {}
-    ingestion = arts.get("ingestion") or {}
-
-    report = {
-        "ingestion": ingestion,
-        "idca": idca,
-        "novelty": novelty,
-        "verdict": "UNDECIDED (dummy)",
-    }
-    aa_cache = {
-        "weights": {"idca": 0.5, "naa": 0.5},
-        "merge_policy": "dummy-avg",
-    }
-
-    return {
-        "artifacts": {"report": report},
-        "internals": {"aa": aa_cache},
-        "logs": ["AA: dummy aggregation complete."],
-    }
-
-
-# -------------------------------
 # COMPLETE VERSION (default-exported aa_node)
 # -------------------------------
 def _default_ingestion() -> Dict[str, Any]:
@@ -148,6 +116,38 @@ def aa_node(state: GraphState) -> Dict[str, Any]:
         },
         "internals": {"aa": aa_cache},
         "logs": [f"AA: complete structure aggregation done. request_id={request_id}"],
+    }
+
+
+# -------------------------------
+# DUMMY VERSION (kept for testing)
+# -------------------------------
+def aa_node_dummy(state: GraphState) -> Dict[str, Any]:
+    """
+    Aggregation Agent (dummy):
+    - Just stitches together artifacts without filling missing parts.
+    - Verdict is fixed "UNDECIDED (dummy)".
+    """
+    arts = state.get("artifacts") or {}
+    idca = arts.get("idca") or {}
+    novelty = arts.get("novelty") or {}
+    ingestion = arts.get("ingestion") or {}
+
+    report = {
+        "ingestion": ingestion,
+        "idca": idca,
+        "novelty": novelty,
+        "verdict": "UNDECIDED (dummy)",
+    }
+    aa_cache = {
+        "weights": {"idca": 0.5, "naa": 0.5},
+        "merge_policy": "dummy-avg",
+    }
+
+    return {
+        "artifacts": {"report": report},
+        "internals": {"aa": aa_cache},
+        "logs": ["AA: dummy aggregation complete."],
     }
 
 
