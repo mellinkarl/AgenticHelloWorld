@@ -77,13 +77,13 @@ def aa_node(state: GraphState) -> Dict[str, Any]:
     """
     request_id = state.get("request_id")
     artifacts = state.get("artifacts") or {}
-    ingestion_in = artifacts.get("ingestion") or {}
+    ia_in = artifacts.get("ia") or {}
     idca_in = artifacts.get("idca") or {}
-    novelty_in = artifacts.get("novelty") or {}
+    naa_in = artifacts.get("naa") or {}
 
-    ingestion = _safe_merge(_default_ingestion(), ingestion_in)
+    ia = _safe_merge(_default_ingestion(), ia_in)
     idca = _safe_merge(_default_idca(), idca_in)
-    novelty = _safe_merge(_default_novelty(), novelty_in)
+    naa = _safe_merge(_default_novelty(), naa_in)
 
     report = {
         "meta": {
@@ -91,9 +91,9 @@ def aa_node(state: GraphState) -> Dict[str, Any]:
             "generated_at": _timestamp_utc_iso(),
             "schema_version": "aa-report-v1",
         },
-        "ingestion": ingestion,
+        "ia": ia,
         "idca": idca,
-        "novelty": novelty,
+        "naa": naa,
         "verdict": "UNDECIDED",
     }
 
@@ -101,20 +101,21 @@ def aa_node(state: GraphState) -> Dict[str, Any]:
         "mode": "structure-completion-only",
         "merge_policy": "shallow-default-fill",
         "inputs_present": {
-            "ingestion": bool(ingestion_in),
+            "ingestion": bool(ia_in),
             "idca": bool(idca_in),
-            "novelty": bool(novelty_in),
+            "novelty": bool(naa_in),
         },
     }
 
     return {
         "artifacts": {
             "report": report,
-            "ingestion": ingestion,
+            "ia": ia,
             "idca": idca,
-            "novelty": novelty,
+            "naa": naa,
         },
         "internals": {"aa": aa_cache},
+        "runtime": {"aa": {"status": "FINISHED", "route": []}},
         "logs": [f"AA: complete structure aggregation done. request_id={request_id}"],
     }
 

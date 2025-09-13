@@ -200,14 +200,14 @@ async def invoke(payload: dict, background_tasks: BackgroundTasks):
             )
 
             # Append main-level success message
-            msgs = result.get("message")
+            msgs = result.get("messages")
             if not isinstance(msgs, list):
                 msgs = []
             msgs.append("[main] graph finished successfully.")
 
             result["status"] = "FINISHED"
             result["updated_at"] = now_iso()
-            result["message"] = msgs
+            result["messages"] = msgs
 
             await app.state.store.save_state(request_id, result)
 
@@ -217,7 +217,7 @@ async def invoke(payload: dict, background_tasks: BackgroundTasks):
                 "request_id": request_id,
                 "status": "FAILED",
                 "updated_at": now_iso(),
-                "message": [f"[main] graph failed: {str(e)}"],
+                "messages": [f"[main] graph failed: {str(e)}"],
                 # Optionally, pass through doc_gcs_uri if available in init
                 "doc_gcs_uri": init.get("doc_gcs_uri")
             }
