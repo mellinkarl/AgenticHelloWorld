@@ -9,6 +9,7 @@ from typing import Dict
 # Template keys
 # -----------------------
 TPL_CPC_L1 = "cpc_l1"
+TPL_CPC_L2 = "cpc_l2"
 TPL_INNOVATION_TYPE = "innovation_type"  # for future use
 
 _TEMPLATES: Dict[str, str] = {
@@ -25,8 +26,24 @@ _TEMPLATES: Dict[str, str] = {
         "If uncertain, return an empty list [].\n"
     ),
 
+    # {0} -> summary, {1} -> concatenated Level-2 options string for chosen Level-1 sections
+    # NOTE: No literal { } braces here to avoid str.format conflicts.
+    # The JSON object shape is enforced by the response schema instead.
+    TPL_CPC_L2: (
+        "### TASK\n"
+        "From the provided CPC Level-2 options, select all classes that apply to the invention.\n\n"
+        "### INPUT: SUMMARY\n"
+        "{0}\n\n"
+        "### INPUT: CPC LEVEL-2 OPTIONS (only within previously selected Level-1 sections)\n"
+        "{1}\n\n"
+        "### OUTPUT\n"
+        "Return ONLY a JSON object mapping class codes to their official titles.\n"
+        "If uncertain, return an empty object.\n"
+    ),
+
     # For future: innovation type recognition
     # {0} -> summary, {1} -> taxonomy text
+    # (braces are escaped here so str.format doesn't treat them as placeholders)
     TPL_INNOVATION_TYPE: (
         "### TASK\n"
         "Classify the invention into one of the patentable subject-matter categories.\n\n"
@@ -35,7 +52,7 @@ _TEMPLATES: Dict[str, str] = {
         "### CATEGORY TAXONOMY (authoritative)\n"
         "{1}\n\n"
         "### OUTPUT\n"
-        "Return ONLY a JSON object: {\"invention_type\": \"process|machine|manufacture|composition|design|none\"}.\n"
+        "Return ONLY a JSON object: {{\"invention_type\": \"process|machine|manufacture|composition|design|none\"}}.\n"
     ),
 }
 
@@ -68,6 +85,7 @@ def build_prompt(template_key: str, *args) -> str:
     """
     Load a task template by key and format it with positional args.
     The caller controls what to pass in (order-sensitive).
+    NOTE: Any literal curly braces in templates must be doubled: '{{' and '}}'.
     """
     if template_key not in _TEMPLATES:
         raise KeyError(f"Unknown template_key: {template_key}")

@@ -48,10 +48,15 @@ SCHEMA_STRUCTURE_DETAILS: Dict[str, Any] = {
 }
 
 # Simplified schema: CPC Level-1 codes as a JSON array of strings.
-# NOTE: We do NOT enumerate allowed codes here; codes come from config.
 SCHEMA_CPC_L1_CODES: Dict[str, Any] = {
     "type": "array",
     "items": {"type": "string"}
+}
+
+# Level-2 selection schema: arbitrary object mapping { "G05": "CONTROLLING; REGULATING", ... }
+SCHEMA_CPC_L2_DICT: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": {"type": "string"}
 }
 
 __all__ = [
@@ -59,4 +64,5 @@ __all__ = [
     "SCHEMA_METHOD_DETAILS",
     "SCHEMA_STRUCTURE_DETAILS",
     "SCHEMA_CPC_L1_CODES",
+    "SCHEMA_CPC_L2_DICT",
 ]

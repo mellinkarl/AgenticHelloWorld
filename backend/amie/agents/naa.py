@@ -16,11 +16,12 @@ from .schema.naa_schema import (
     SCHEMA_INVENTION_TYPE,
     SCHEMA_METHOD_DETAILS,
     SCHEMA_STRUCTURE_DETAILS,
-    SCHEMA_CPC_L1_CODES,  # simplified schema: List[str]
+    SCHEMA_CPC_L1_CODES,   # List[str]
+    SCHEMA_CPC_L2_DICT,    # Dict[str, str]
 )
 from .prompt.naa_prompt import (
     build_prompt, build_prompt_sys,
-    TPL_CPC_L1, format_innovation_taxonomy_text,  # noqa: F401 (taxonomy used later)
+    TPL_CPC_L1, TPL_CPC_L2, format_innovation_taxonomy_text,  # noqa: F401 (taxonomy used later)
     SYS_PATENT_CLASSIFIER,
 )
 
@@ -169,10 +170,10 @@ def _run_sources_pipeline(sources: List[SourceType], ctx: Dict[str, Any]) -> Lis
 
 def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
-    NAA node (step: CPC Level-1 classification with simple prompt),
-    plus ordered sources pipeline scaffold (no-op).
-    Input: summary (from IDCA), CPC strings from config.
-    Output: artifacts.naa.cpc_level.level1 as List[str], and cpc_string from config.
+    NAA node:
+      1) CPC Level-1 classification (letters) via LLM。
+      2) CPC Level-2 classification (dict{class_code:title}) via LLM，使用 Level-1 选中的 section 的 level2 选项。
+      3) Sources pipeline scaffold (no-op).
     """
     try:
         # 0) Global precheck
@@ -188,50 +189,71 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
         summary: str = state["artifacts"]["idca"]["summary"]
         cfg = (config or {}).get("configurable", {}) if isinstance(config, dict) else {}
 
-        # -- EARLY: LLM client presence check (as requested) --
+        # -- EARLY: LLM client presence check --
         client: Optional["genai.Client"] = cfg.get("genai_client")
         if client is None:
             return _finish_with_message("NAA terminated: LLM client missing.")
-
         model_name = cfg.get("model_name", MODEL_TEXT_DEFAULT)
 
-        # CPC references (from config; do NOT recreate)
-        cpc_strings = cfg.get("cpc_strings", {})    # {"level1": "A:...\nB:...\n...", "level2": {...}}
-        cpc_level1_str = cpc_strings.get("level1", "") if isinstance(cpc_strings, dict) else ""
+        # CPC references (from config; guaranteed present)
+        cpc_strings = cfg.get("cpc_strings")             # {"level1": "...", "level2": { "A": "...", ... }}
+        cpc_level1_str = cpc_strings.get("level1")
+        cpc_level2_map_str = cpc_strings.get("level2")   # dict: section -> newline-joined classes string
 
-        # 3) Build prompt with shared system header (positional args only)
-        #    Order: {0}=summary, {1}=level1 string
-        prompt_text = build_prompt_sys(SYS_PATENT_CLASSIFIER, TPL_CPC_L1, summary, cpc_level1_str)
-
-        # 4) Call LLM (schema: List[str] of CPC letters)
+        # 3) Level-1 prompt & call
+        prompt_l1 = build_prompt_sys(SYS_PATENT_CLASSIFIER, TPL_CPC_L1, summary, cpc_level1_str)
         level1_codes: List[str] = []
-        result = call_llm_json(
+        result_l1 = call_llm_json(
             client=client,
             model=model_name,
-            prompt_text=prompt_text,
+            prompt_text=prompt_l1,
             schema=SCHEMA_CPC_L1_CODES,
         )
-        if isinstance(result, list) and all(isinstance(x, str) for x in result):
-            level1_codes = result
-        print("++++++++++++++++++++++++++++good++++++++++++++++++++++++++++")
-        print()
-        print()
-        print()
-        print(prompt_text)
-        print()
-        print()
-        print()
-        print(SCHEMA_CPC_L1_CODES)
-        print()
-        print()
-        print()
-        print(result)
-        print()
-        print()
-        print()
-        print("++++++++++++++++++++++++++++good++++++++++++++++++++++++++++")
+        if isinstance(result_l1, list) and all(isinstance(x, str) for x in result_l1):
+            level1_codes = result_l1
 
-        # 5) Placeholders for later steps
+        # 4) Level-2 options assembly (only for chosen Level-1 sections)
+        level2_options_str_parts: List[str] = []
+        for sec in level1_codes:
+            sec_block = cpc_level2_map_str.get(sec)
+            if sec_block:
+                level2_options_str_parts.append(f"### {sec}\n{sec_block}")
+        level2_options_str = "\n\n".join(level2_options_str_parts)
+
+        # 5) Level-2 prompt & call (if we have options)
+        level2_dict: Dict[str, str] = {}
+
+        assert(level2_options_str.strip())
+        prompt_l2 = build_prompt_sys(SYS_PATENT_CLASSIFIER, TPL_CPC_L2, summary, level2_options_str)
+
+        result_l2 = call_llm_json(
+            client=client,
+            model=model_name,
+            prompt_text=prompt_l2,
+            schema=SCHEMA_CPC_L2_DICT,
+        )
+
+        if isinstance(result_l2, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in result_l2.items()):
+            level2_dict = result_l2
+
+        print("++++++++++++++++++++++++++++good++++++++++++++++++++++++++++")
+        print()
+        print()
+        print()
+        print(prompt_l2)
+        print()
+        print()
+        print()
+        print(SCHEMA_CPC_L2_DICT)
+        print()
+        print()
+        print()
+        print(result_l2)
+        print()
+        print()
+        print()
+        print("++++++++++++++++++++++++++++good++++++++++++++++++++++++++++")
+        # 6) Placeholders for later steps
         invention_type: InnovationType = "none"
         invention_details: Dict[str, Any] = {
             "method_steps": [],
@@ -239,16 +261,17 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
             "notes": "placeholder-only; no expansion performed",
         }
 
-        # 6) Sources pipeline (ordered execution; skeleton only)
+        # 7) Sources pipeline (ordered execution; skeleton only)
         sources_seq: List[SourceType] = _get_sources_sequence(state, cfg)
         pipeline_ctx: Dict[str, Any] = {
             "summary": summary,
             "cpc_level1_codes": level1_codes,
+            "cpc_level2_dict": level2_dict,
             "now": _now_iso(),
         }
         source_runs = _run_sources_pipeline(sources_seq, pipeline_ctx)
 
-        # 7) Assemble artifacts
+        # 8) Assemble artifacts
         naa_art: Dict[str, Any] = {
             "integrated": [],
             "detailed_checks": [],
@@ -256,22 +279,29 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
             "invention_details": invention_details,
             "queries": [],
             "sources": sources_seq,  # executed order
-            "model_version": "naa-skel-4",
+            "model_version": "naa-skel-5",
             "generated_at": _now_iso(),
             "input_summary": summary,
             "cpc_level": {
-                "level1": level1_codes,
-                "level2": {},            # not computed yet
+                "level1": level1_codes,   # List[str]
+                "level2": level2_dict,    # Dict[str,str] chosen by LLM
             },
             "cpc_string": {
-                "level1": cpc_level1_str,                 # newline-joined from config
-                "level2": cpc_strings.get("level2", {}),  # pass-through from config
+                "level1": cpc_level1_str,   # newline-joined from config
+                "level2": cpc_level2_map_str,  # dict section->newline-joined classes string (from config)
             },
         }
 
         naa_internals: List[Dict[str, Any]] = [
             {"stage": "precheck", "idca_status": _idca_status, "has_summary": bool(summary)},
             {"stage": "cpc_level1_classification", "template": TPL_CPC_L1, "result_len": len(level1_codes)},
+            {
+                "stage": "cpc_level2_classification",
+                "template": TPL_CPC_L2,
+                "sections": level1_codes,
+                "options_len": len(level2_options_str_parts),
+                "result_len": len(level2_dict),
+            },
             {"stage": "sources_pipeline", "sequence": sources_seq, "runs": source_runs},
             {
                 "stage": "type_recognition",
@@ -289,7 +319,7 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
             "artifacts": {"naa": naa_art},
             "internals": {"naa": naa_internals},
             "runtime": {"naa": {"status": "FINISHED", "route": []}},
-            "message": "naa finished CPC Level-1 classification (letters only) and executed sources scaffold",
+            "message": "naa finished CPC Level-1 letters and Level-2 dict classification; sources scaffold executed",
         }
 
     except Exception as e:
@@ -320,5 +350,5 @@ def naa_node_dummy(state: GraphState, config=None) -> Dict[str, Any]:
     }
 
 
-# Export as Runnable (kept; switch to naa_node when ready)
+# Export as Runnable (wire to real node)
 NOVELTY_A = RunnableLambda(naa_node)
