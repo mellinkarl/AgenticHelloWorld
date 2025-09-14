@@ -12,21 +12,30 @@ from ..state import GraphState
 
 model = "gemini-2.0-flash-lite-001"
 
-def call_LLM(genai_client: genai.Client, model_name: str, content: types.ContentListUnionDict, conf: types.GenerateContentConfigOrDict | None = None) -> dict | None:
-    try:
-
-        resp = genai_client.models.generate_content(
-            model=model_name,
-            contents=content,
-            config=conf
-        )
-
-        text = resp.text
-        return json.loads(text)
+def call_LLM(genai_client: genai.Client, model_name: str, content: types.ContentListUnionDict, conf: types.GenerateContentConfigOrDict | None = None, repeats = 5) -> dict | None:
     
-    except Exception as e:
-        print(f"LLM error: {e}")
-        return None
+    for i in range(repeats):
+
+        output = None
+
+        try:    
+
+            resp = genai_client.models.generate_content(
+                model=model_name,
+                contents=content,
+                config=conf
+            )
+            output = json.loads(resp.text)
+        
+        except Exception as e:
+
+            print(f"LLM error: {e}")
+            output = None
+
+        if output is not None:
+            break
+    
+    return output
     
 def multimedia_content(prompt: str,uri: str, m_type: str = "application/pdf") -> list:
     return [types.Part.from_uri(file_uri=uri, mime_type=m_type), prompt]
@@ -43,6 +52,7 @@ def generate_output(log: str, step1: dict | None = None, step2: dict | None = No
     artifacts["status"] = "absent"
 
     if step1:
+        artifacts["publish_date"] = step1["publish_date"]
         artifacts["fields"] = step1["fields_needed"]
         artifacts["manuscript_type"] = step1["manuscript_type"]
         cache["title"] = step1["title"]
@@ -86,22 +96,20 @@ def idca_node(state: GraphState, config) -> Dict[str, Any]:
     - Determine what type of manuscript it is.
     - Determine fields needed to understand manuscript
     """
-    step1_prompt="Read this manuscript. Determine the title, the author, and determine what fields are needed to understand this manuscript."
+    step1_prompt="Read this manuscript. Determine the title, the author, the publish date, and determine what fields are needed to understand the subject matter of this manuscript. If you cannot find the publish date, or are not sure if the date found is the true publish date or something else, make publish_date null, otherwise, make publish_date the date found in RFC 3339, section 5.6 format "
     step1_schema={
                     "type": "object",
                     "properties": {
                         "title": {"type": "string"},
                         "authors": {"type": "array", "items": {"type": "string"}},
+                        "publish_date": {"type": ["string", "null"], "format": "date", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
                         "manuscript_type": {"type": "string"},
                         "fields_needed": {"type": "array", "items": {"type": "string"}}
                     },
                     "required": ["title", "authors", "manuscript_type", "fields_needed"]
                 }
-    step1 = None
-    for i in range(5):
-        step1 = call_LLM(genai_client, model_name=model, content=multimedia_content(step1_prompt, src), conf=response_schema(step1_schema))
-        if step1 is not None:
-            break
+    
+    step1 = call_LLM(genai_client, model_name=model, content=multimedia_content(step1_prompt, src), conf=response_schema(step1_schema))
     if step1 is None:
         return generate_output("LLM malfunctioned in step 1")
     print(f"first llm call, response: {step1}")
@@ -114,17 +122,14 @@ def idca_node(state: GraphState, config) -> Dict[str, Any]:
     step2_schema={
                     "type": "object",
                     "properties": {
-                        "patent_type": {"type": "string", "enum": ["process", "product", "both", "unknown"]},
+                        "patent_type": {"type": "string", "enum": ["method", "apparatus", "both", "unknown"]},
                         "status": {"type": "string", "enum": ["present", "implied", "absent"]},
                         "reasoning": {"type": "string"}
                     },
                     "required": ["patent_type", "status", "reasoning"]
                 }
-    step2 = None
-    for i in range(5):
-        step2 = call_LLM(genai_client, model_name=model, content=multimedia_content(step2_prompt, src), conf=response_schema(step2_schema))
-        if step2 is not None:
-            break
+
+    step2 = call_LLM(genai_client, model_name=model, content=multimedia_content(step2_prompt, src), conf=response_schema(step2_schema))
     if step2 is None:
         return generate_output("LLM malfunctioned in step 2", step1)
     print(f"second llm call, response: {step2}")
@@ -145,17 +150,14 @@ def idca_node(state: GraphState, config) -> Dict[str, Any]:
                     },
                     "required": ["summary"]
                 }
-    step3 = None
-    for i in range(5):
-        step3 = call_LLM(genai_client, model_name=model, content=multimedia_content(step3_prompt, src), conf=response_schema(step3_schema))
-        if step3 is not None:
-            break
+
+    step3 = call_LLM(genai_client, model_name=model, content=multimedia_content(step3_prompt, src), conf=response_schema(step3_schema))
     if step3 is None:
         return generate_output("LLM malfunctioned in step 3", step1, step2)
     print(f"third llm call, response: {step3}")
 
 
 
-    return generate_output("Invention detected", step1, step2, step3)
+    return generate_output("Invention is present", step1, step2, step3)
 
 INVENTION_D_C = RunnableLambda(idca_node)
