@@ -10,7 +10,7 @@ from typing import Dict
 # -----------------------
 TPL_CPC_L1 = "cpc_l1"
 TPL_CPC_L2 = "cpc_l2"
-TPL_INNOVATION_TYPE = "innovation_type"  # for future use
+TPL_INNOVATION_TYPE = "innovation_type"
 
 # Detail extraction templates (one per InnovationType)
 TPL_DETAIL_METHOD = "detail_method"
@@ -61,116 +61,107 @@ _TEMPLATES: Dict[str, str] = {
     # -----------------------
     # Detail extraction templates
     # Each uses: {0}=summary, {1}=type_name, {2}=type_description, {3}=doc_uri (may be empty).
+    # IMPORTANT: Schema stays the same; we only make the content more explicit/detailed.
     # -----------------------
 
     TPL_DETAIL_METHOD: (
         "### SYSTEM\n"
         "- You are a senior patent analyst.\n"
-        "- Goal: extract deterministic, structured method details.\n"
-        "- Output MUST be valid JSON matching the requested schema.\n"
-        "- Use ONLY the provided inputs (PDF + text). If uncertain, return minimal fields.\n\n"
+        "- Output MUST be valid JSON per schema; do not add extra keys.\n"
+        "- Use ONLY the provided inputs (PDF + text). If any field is unknown, return an empty array for it.\n\n"
         "### TASK\n"
-        "The invention type is: {1}.\n"
+        "The invention type is: {1}\n"
         "Type description:\n{2}\n\n"
         "### INPUTS\n"
         "Short summary:\n{0}\n\n"
-        "If available, a PDF is attached via URI (may be empty):\n{3}\n\n"
-        "### REQUIRED OUTPUT SHAPE\n"
-        "Return ONLY a JSON object matching the schema fields:\n"
-        "- method_steps: array[string] (chronological, concrete, executable steps)\n"
+        "If available, a PDF is attached via URI (may be empty): {3}\n\n"
+        "### REQUIRED OUTPUT SHAPE (schema-preserving)\n"
+        "- method_steps: array[string] — ordered, actionable steps with numbered prefixes, e.g., \"1) Acquire signal ...\".\n"
         "- assumptions: array[string]\n"
         "- constraints: array[string]\n"
-        "Be concise, do not invent facts, and prefer quoting terminology from the PDF when unambiguous.\n"
+        "Be chronological and specific; avoid vague phrasing.\n"
     ),
 
     TPL_DETAIL_MACHINE: (
         "### SYSTEM\n"
         "- You are a senior patent analyst.\n"
-        "- Goal: extract deterministic, structured machine details.\n"
-        "- Output MUST be valid JSON matching the requested schema.\n"
-        "- Use ONLY the provided inputs (PDF + text). If uncertain, return minimal fields.\n\n"
+        "- Output MUST be valid JSON per schema; do not add extra keys.\n"
+        "- Use ONLY the provided inputs (PDF + text). If any field is unknown, return an empty array for it.\n\n"
         "### TASK\n"
-        "The invention type is: {1}.\n"
+        "The invention type is: {1}\n"
         "Type description:\n{2}\n\n"
         "### INPUTS\n"
         "Short summary:\n{0}\n\n"
-        "If available, a PDF is attached via URI (may be empty):\n{3}\n\n"
-        "### REQUIRED OUTPUT SHAPE\n"
-        "Return ONLY a JSON object with fields:\n"
-        "- components: array[object{{name, function, key_specs}}]\n"
-        "- subsystems: array[string]\n"
-        "- connections: array[string]  # how parts interface (mechanical/electrical/data)\n"
-        "- operating_principles: array[string]\n"
-        "- materials: array[string]\n"
-        "- sensors_actuators: array[string]\n"
-        "- constraints: array[string]\n"
-        "Be specific about physical structure and interfaces.\n"
+        "If available, a PDF is attached via URI (may be empty): {3}\n\n"
+        "### REQUIRED OUTPUT SHAPE (schema-preserving)\n"
+        "- components: array[object{{name, function, key_specs}}] — be granular; keep model numbers and key ratios in key_specs.\n"
+        "- subsystems: array[string] — system-level groupings (e.g., \"Cable drive system\").\n"
+        "- connections: array[string] — **explicit edges** in the form:\n"
+        "  \"order N: [FROM] -> [TO] via [INTERFACE/MEDIUM]; materials=[MATERIAL SPEC]; notes=[ROUTING/FASTENER/GEAR TYPE]\".\n"
+        "  Examples: \"order 1: Stepper motor (NEMA 17) -> Capstan drive via steel cable; materials=steel cable 7x7 1.2mm, PTFE-coated; notes=preload 30N, routed through idler pulleys P1,P2\".\n"
+        "  \"order 2: Capstan drive -> Elbow pulley via timing belt; materials=GT3 5MGT-9; notes=tension 40N\".\n"
+        "- operating_principles: array[string] — e.g., \"Cable-driven transmission\", \"Topology optimization for stiffness\".\n"
+        "- materials: array[string] — include detailed specs, e.g., \"Steel cable 7x7, 1.2 mm, pre-stretched\".\n"
+        "- sensors_actuators: array[string] — e.g., \"Stepper motors (NEMA 17, NEMA 23)\".\n"
+        "- constraints: array[string] — numeric targets preferred, e.g., \"Cost under $215\", \"0.63 kg payload\".\n"
+        "Keep `connections` strictly as strings but **always** include from/to, interface/medium, order, and material notes (steel cable specs if present).\n"
     ),
 
     TPL_DETAIL_MANUFACTURE: (
         "### SYSTEM\n"
         "- You are a senior patent analyst.\n"
-        "- Goal: extract deterministic details for an article of manufacture.\n"
-        "- Output MUST be valid JSON matching the requested schema.\n"
-        "- Use ONLY the provided inputs (PDF + text). If uncertain, return minimal fields.\n\n"
+        "- Output MUST be valid JSON per schema; do not add extra keys.\n"
+        "- Use ONLY the provided inputs (PDF + text). If any field is unknown, return an empty array for it.\n\n"
         "### TASK\n"
-        "The invention type is: {1}.\n"
+        "The invention type is: {1}\n"
         "Type description:\n{2}\n\n"
         "### INPUTS\n"
         "Short summary:\n{0}\n\n"
-        "If available, a PDF is attached via URI (may be empty):\n{3}\n\n"
-        "### REQUIRED OUTPUT SHAPE\n"
-        "Return ONLY a JSON object with fields:\n"
-        "- article_components: array[object{{name, function}}]\n"
-        "- materials: array[string]\n"
-        "- dimensions: array[string]\n"
-        "- manufacturing_steps: array[string]\n"
-        "- assembly: array[string]\n"
+        "If available, a PDF is attached via URI (may be empty): {3}\n\n"
+        "### REQUIRED OUTPUT SHAPE (schema-preserving)\n"
+        "- article_components: array[object{{name, function}}] — granular parts list.\n"
+        "- materials: array[string] — include grades/specs (e.g., \"6061-T6\"), surface finishes, or cable specs if relevant.\n"
+        "- dimensions: array[string] — include units.\n"
+        "- manufacturing_steps: array[string] — ordered, numbered.\n"
+        "- assembly: array[string] — ordered, numbered, with joining methods.\n"
         "- tolerances: array[string]\n"
-        "Focus on the physical article and its fabrication.\n"
     ),
 
     TPL_DETAIL_COMPOSITION: (
         "### SYSTEM\n"
         "- You are a senior patent analyst.\n"
-        "- Goal: extract deterministic details for a composition of matter.\n"
-        "- Output MUST be valid JSON matching the requested schema.\n"
-        "- Use ONLY the provided inputs (PDF + text). If uncertain, return minimal fields.\n\n"
+        "- Output MUST be valid JSON per schema; do not add extra keys.\n"
+        "- Use ONLY the provided inputs (PDF + text). If any field is unknown, return an empty array for it.\n\n"
         "### TASK\n"
-        "The invention type is: {1}.\n"
+        "The invention type is: {1}\n"
         "Type description:\n{2}\n\n"
         "### INPUTS\n"
         "Short summary:\n{0}\n\n"
-        "If available, a PDF is attached via URI (may be empty):\n{3}\n\n"
-        "### REQUIRED OUTPUT SHAPE\n"
-        "Return ONLY a JSON object with fields:\n"
-        "- constituents: array[object{{name, role, amount}}]  # amount can be ranges/percentages\n"
-        "- synthesis_steps: array[string]\n"
+        "If available, a PDF is attached via URI (may be empty): {3}\n\n"
+        "### REQUIRED OUTPUT SHAPE (schema-preserving)\n"
+        "- constituents: array[object{{name, role, amount}}] — amounts may be ranges/percentages.\n"
+        "- synthesis_steps: array[string] — ordered, numbered.\n"
         "- properties: array[string]\n"
         "- use_cases: array[string]\n"
         "- constraints: array[string]\n"
-        "Report quantitative details only if present; otherwise omit or be qualitative.\n"
     ),
 
     TPL_DETAIL_DESIGN: (
         "### SYSTEM\n"
         "- You are a senior patent analyst.\n"
-        "- Goal: extract deterministic details for an ornamental design (design patent).\n"
-        "- Output MUST be valid JSON matching the requested schema.\n"
-        "- Use ONLY the provided inputs (PDF + text). If uncertain, return minimal fields.\n\n"
+        "- Output MUST be valid JSON per schema; do not add extra keys.\n"
+        "- Use ONLY the provided inputs (PDF + text). If any field is unknown, return an empty array for it.\n\n"
         "### TASK\n"
-        "The invention type is: {1}.\n"
+        "The invention type is: {1}\n"
         "Type description:\n{2}\n\n"
         "### INPUTS\n"
         "Short summary:\n{0}\n\n"
-        "If available, a PDF is attached via URI (may be empty):\n{3}\n\n"
-        "### REQUIRED OUTPUT SHAPE\n"
-        "Return ONLY a JSON object with fields:\n"
+        "If available, a PDF is attached via URI (may be empty): {3}\n\n"
+        "### REQUIRED OUTPUT SHAPE (schema-preserving)\n"
         "- ornamental_features: array[string]\n"
-        "- views: array[string]  # referenced figures or views, e.g., front, top, perspective\n"
-        "- non_functional_statement: string  # confirm ornamental focus\n"
-        "- claim_scope_note: string  # concise verbal summary of the ornamental claim\n"
-        "Do not speculate about utility; confine to ornamental aspects.\n"
+        "- views: array[string] — reference figure names or viewpoints.\n"
+        "- non_functional_statement: string\n"
+        "- claim_scope_note: string\n"
     ),
 }
 
@@ -200,30 +191,16 @@ _SYSTEMS: Dict[str, str] = {
 # Builders
 # -----------------------
 def build_prompt(template_key: str, *args) -> str:
-    """
-    Load a task template by key and format it with positional args.
-    The caller controls what to pass in (order-sensitive).
-    NOTE: Any literal curly braces in templates must be doubled: '{{' and '}}'.
-    """
     if template_key not in _TEMPLATES:
         raise KeyError(f"Unknown template_key: {template_key}")
     return _TEMPLATES[template_key].format(*args)
 
 
 def build_prompt_sys(system_key: str, template_key: str, *args) -> str:
-    """
-    Prepend a shared system header, then append the formatted task prompt.
-    """
     if system_key not in _SYSTEMS:
         raise KeyError(f"Unknown system_key: {system_key}")
     return _SYSTEMS[system_key] + "\n" + build_prompt(template_key, *args)
 
 
-# -----------------------
-# Utility (for future prompts)
-# -----------------------
 def format_innovation_taxonomy_text(descriptions: Dict[str, str]) -> str:
-    """
-    Turn an InnovationType description dict into a readable block for prompts.
-    """
     return "\n".join(f"- {k}: {v}" for k, v in descriptions.items())

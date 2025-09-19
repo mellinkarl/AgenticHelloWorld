@@ -17,6 +17,7 @@ SCHEMA_INVENTION_TYPE: Dict[str, Any] = {
     "required": ["invention_type"]
 }
 
+# Process / Method details
 SCHEMA_METHOD_DETAILS: Dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -27,7 +28,7 @@ SCHEMA_METHOD_DETAILS: Dict[str, Any] = {
     "required": ["method_steps"]
 }
 
-# Used for machine-like physical structures
+# Machine / physical structure details
 SCHEMA_MACHINE_DETAILS: Dict[str, Any] = {
     "type": "object",
     "properties": {
