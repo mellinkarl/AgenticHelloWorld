@@ -167,14 +167,14 @@ curl -X POST "http://127.0.0.1:8000/invoke" \
 **Response Example:**
 ```json
 {
-  "request_id": "b060d513-13c2-4d86-8c88-8f602bffe052"
+  "request_id": "915ff1d7-6f21-491b-b807-2c59f3bc7bb8"
 }
 ```
 
 ### Query Processing Status
 
 ```bash
-curl -X GET http://127.0.0.1:8000/state/{b060d513-13c2-4d86-8c88-8f602bffe052}
+curl -X GET http://127.0.0.1:8000/state/{915ff1d7-6f21-491b-b807-2c59f3bc7bb8} | jq -S . 
 ```
 
 **Response Example:**
@@ -185,7 +185,7 @@ curl -X GET http://127.0.0.1:8000/state/{b060d513-13c2-4d86-8c88-8f602bffe052}
 ### Debug State Query
 
 ```bash
-curl -X GET http://127.0.0.1:8000/debug_state/{4f898083-4384-4877-b8d5-8a364fca7986}
+curl -X GET http://127.0.0.1:8000/debug_state/{915ff1d7-6f21-491b-b807-2c59f3bc7bb8} | jq -S . 
 ```
 #### Example output:
 ```json

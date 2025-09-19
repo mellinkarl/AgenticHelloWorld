@@ -20,22 +20,18 @@ def call_LLM(genai_client: genai.Client, model_name: str, content: types.Content
 
         try:    
 
-            resp = genai_client.models.generate_content(
-                model=model_name,
-                contents=content,
-                config=conf
-            )
-            output = json.loads(resp.text)
-        
-        except Exception as e:
+        resp = genai_client.models.generate_content(
+            model=model_name,
+            contents=content,
+            config=conf
+        )
 
-            print(f"LLM error: {e}")
-            output = None
+        text = resp.text
+        return json.loads(text)
 
-        if output is not None:
-            break
-    
-    return output
+    except Exception as e:
+        print(f"LLM error: {e}")
+        return None
     
 def multimedia_content(prompt: str,uri: str, m_type: str = "application/pdf") -> list:
     return [types.Part.from_uri(file_uri=uri, mime_type=m_type), prompt]
@@ -156,8 +152,7 @@ def idca_node(state: GraphState, config) -> Dict[str, Any]:
         return generate_output("LLM malfunctioned in step 3", step1, step2)
     print(f"third llm call, response: {step3}")
 
+    return generate_output("Invention detected", step1, step2, step3)
 
+INVENTION_D_C = RunnableLambda(idca_node_dummy)
 
-    return generate_output("Invention is present", step1, step2, step3)
-
-INVENTION_D_C = RunnableLambda(idca_node)

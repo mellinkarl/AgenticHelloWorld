@@ -16,6 +16,9 @@ from ..state import GraphState, default_runtime_block, frontend_view
 from ..graph import build_graph
 from .store import InMemoryStore
 
+from ..agents.utils.cpc_loader import load_cpc_levels
+
+
 app = FastAPI(title="AMIE API")
 app.state.graph = build_graph()
 app.state.store = InMemoryStore()
@@ -23,9 +26,7 @@ app.state.store = InMemoryStore()
 # ---- GCS environment configuration ----
 GC_PROJECT = os.environ.get("GC_PROJECT", "aime-hello-world")  # required (Project ID of Google Cloud Project)
 GCS_PREFIX = os.environ.get("GCS_PREFIX", "amie/pdf/")  # default prefix for uploaded PDFs
-SIGNED_URL_TTL_SECONDS = int(os.environ.get("SIGNED_URL_TTL_SECONDS", "3600"))  # default: 1h
 GCS_BUCKET = os.environ.get("GCS_BUCKET", "aime-hello-world-amie-uswest1")
-GCS_PREFIX = os.environ.get("GCS_PREFIX", "amie/tmp/")
 SIGNED_URL_TTL_SECONDS = int(os.environ.get("SIGNED_URL_TTL_SECONDS", str(7 * 24 * 3600)))
 
 if not GCS_BUCKET:
@@ -145,6 +146,21 @@ async def lifespan(app: FastAPI):
     storage_client = storage.Client()
     bucket = storage_client.bucket(GCS_BUCKET)
 
+    # --- Load CPC levels (dict1, dict2) at startup ---
+    try:
+        dict1, dict2 = load_cpc_levels()  # reads backend/amie/agents/utils/cpc_levels.npy
+        app.state.cpc_levels = dict1  # {"level1": {...}, "level2": {...}}
+        app.state.cpc_strings = dict2  # {"level1": "A: ...\nB: ...", "level2": {"A": "A01: ...\n..."}}
+        # (optional) quick sanity log
+        sec_cnt = len(dict1.get("level1", {}))
+        cls_cnt = sum(len(v) for v in dict1.get("level2", {}).values())
+        print(f"[CPC] Loaded: sections={sec_cnt}, classes={cls_cnt}")
+    except Exception as e:
+        # Don’t crash the app if CPC data is missing; just warn and keep empty.
+        print(f"[WARN] CPC load failed: {e}")
+        app.state.cpc_levels = {"level1": {}, "level2": {}}
+        app.state.cpc_strings = {"level1": "", "level2": {}}
+
     try:
         # Align cleanup to 7 days so V4 signed URL can match it
         _ensure_delete_lifecycle(bucket, GCS_PREFIX, days=7, suffixes=ACCEPTED_SUFFIXES)
@@ -159,6 +175,25 @@ async def lifespan(app: FastAPI):
     bucket = None
 
 app.router.lifespan_context = lifespan
+
+# ----------------- load_cpc_levels Debug -----------------
+
+@app.get("/debug/cpc")
+async def debug_cpc():
+    return {
+        # raw dicts
+        "level1": app.state.cpc_levels.get("level1", {}),
+        "level2": app.state.cpc_levels.get("level2", {}),
+
+        # pretty strings
+        "level1_string": app.state.cpc_strings.get("level1", ""),
+        "level2_strings": app.state.cpc_strings.get("level2", {}),
+
+        # optional quick previews
+        "level1_keys": sorted(app.state.cpc_levels.get("level1", {}).keys()),
+        "level2_sections": sorted(app.state.cpc_levels.get("level2", {}).keys()),
+        "level1_string_preview": app.state.cpc_strings.get("level1", "").splitlines()[:5],
+    }
 
 # ----------------- Original AMIE logic -----------------
 
@@ -179,33 +214,52 @@ async def invoke(payload: dict, background_tasks: BackgroundTasks):
         "created_at": now_iso(),
         "updated_at": now_iso(),
         "messages": [],
-        "documents": [],
-        "generation": None,
-        "attempted_generations": 0,
         "runtime": default_runtime_block(),
         "artifacts": {},
         "internals": {"ia": {}, "idca": {}, "naa": {}, "aa": {}},
-        "errors": [],
-        "logs": [],
     }
     await app.state.store.save_state(request_id, init)
 
     async def run_graph():
+        # Mark as RUNNING (global)
         await app.state.store.update_state(
             request_id, {"status": "RUNNING", "updated_at": now_iso()}
         )
+
         try:
+            # Run the graph
             result = await app.state.graph.ainvoke(
-                init, config={"configurable": {"thread_id": request_id, "genai_client": app.state.genai_client}}
+                init,
+                config={"configurable": {
+                    "thread_id": request_id,
+                    "genai_client": app.state.genai_client,
+                    "cpc_levels": app.state.cpc_levels,
+                    "cpc_strings": app.state.cpc_strings
+                }},
             )
+
+            # Append main-level success message
+            msgs = result.get("messages")
+            if not isinstance(msgs, list):
+                msgs = []
+            msgs.append("[main] graph finished successfully.")
+
             result["status"] = "FINISHED"
             result["updated_at"] = now_iso()
+            result["messages"] = msgs
+
             await app.state.store.save_state(request_id, result)
+
         except Exception as e:
-            failed = await app.state.store.get_state(request_id)
-            (failed.setdefault("errors", [])).append(str(e))
-            failed["status"] = "FAILED"
-            failed["updated_at"] = now_iso()
+            # Do not fetch previous state; just record failure info
+            failed = {
+                "request_id": request_id,
+                "status": "FAILED",
+                "updated_at": now_iso(),
+                "messages": [f"[main] graph failed: {str(e)}"],
+                # Optionally, pass through doc_gcs_uri if available in init
+                "doc_gcs_uri": init.get("doc_gcs_uri")
+            }
             await app.state.store.save_state(request_id, failed)
 
     background_tasks.add_task(run_graph)
