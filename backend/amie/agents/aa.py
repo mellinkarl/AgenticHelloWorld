@@ -106,7 +106,8 @@ def aa_node(state: GraphState) -> Dict[str, Any]:
             "novelty": bool(naa_in),
         },
     }
-
+    print("\n")
+    print("="*31, "END","="*31)
     return {
         "artifacts": {
             "report": report,

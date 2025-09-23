@@ -1,7 +1,7 @@
 # amie/agents/prompt/naa_prompt.py
 # Minimal prompt loader with positional formatting + shared system headers
 # Author: Harry
-# 2025-09-12
+# 2025-09-23
 
 from typing import Dict
 
@@ -12,15 +12,37 @@ TPL_CPC_L1 = "cpc_l1"
 TPL_CPC_L2 = "cpc_l2"
 TPL_INNOVATION_TYPE = "innovation_type"
 
-# Detail extraction templates (one per InnovationType)
+# Detail extraction templates
 TPL_DETAIL_METHOD = "detail_method"
 TPL_DETAIL_MACHINE = "detail_machine"
 TPL_DETAIL_MANUFACTURE = "detail_manufacture"
 TPL_DETAIL_COMPOSITION = "detail_composition"
 TPL_DETAIL_DESIGN = "detail_design"
 
+# Enumerate novelty aspects
+TPL_NOVELTY_ASPECTS = "novelty_aspects"
+
+# Single Google Scholar query (for arXiv only)
+TPL_SCHOLAR_SINGLE_QUERY = "scholar_single_query"
+
+# PDF vs PDF comparison
+TPL_COMPARE_PDFS = (
+    "### SYSTEM\n"
+    "- You are a senior patent analyst.\n"
+    "- Compare ONLY the two attached PDFs (first is the invention, second is the candidate reference).\n"
+    "- Ignore titles, authors, years, venues; judge from content only.\n"
+    "- Output MUST be valid JSON exactly matching the schema.\n"
+    "- If an item is uncertain, omit it; do not hallucinate.\n\n"
+    "### TASK\n"
+    "1) List concise bullets of OVERLAP (already present in both PDFs).\n"
+    "2) List concise bullets of NOVELTY (present in invention, absent in candidate).\n"
+    "3) Give an overall SIMILARITY percentage [0..100], where 100 means the candidate fully discloses the same.\n\n"
+    "### OUTPUT (STRICT)\n"
+    "{\"overlap\": [\"...\"], \"novelty\": [\"...\"], \"similarity\": 0.0}\n"
+)
+
 _TEMPLATES: Dict[str, str] = {
-    # {0} -> summary, {1} -> CPC Level-1 human-readable string
+    # CPC L1
     TPL_CPC_L1: (
         "### TASK\n"
         "Decide which CPC Level-1 section(s) the invention belongs to.\n\n"
@@ -32,8 +54,7 @@ _TEMPLATES: Dict[str, str] = {
         "Return ONLY a JSON array of strings with Level-1 codes (e.g., [\"A\",\"H\"]).\n"
         "If uncertain, return an empty list [].\n"
     ),
-
-    # {0} -> summary, {1} -> concatenated Level-2 options string for chosen Level-1 sections
+    # CPC L2
     TPL_CPC_L2: (
         "### TASK\n"
         "From the provided CPC Level-2 options, select all classes that apply to the invention.\n\n"
@@ -45,8 +66,7 @@ _TEMPLATES: Dict[str, str] = {
         "Return ONLY a JSON object mapping class codes to their official titles.\n"
         "If uncertain, return an empty object.\n"
     ),
-
-    # {0} -> summary, {1} -> taxonomy text
+    # Innovation type
     TPL_INNOVATION_TYPE: (
         "### TASK\n"
         "Classify the invention into one of the patentable subject-matter categories.\n\n"
@@ -55,15 +75,10 @@ _TEMPLATES: Dict[str, str] = {
         "### CATEGORY TAXONOMY (authoritative)\n"
         "{1}\n\n"
         "### OUTPUT\n"
-        "Return ONLY a JSON object: {{\"invention_type\": \"process|machine|manufacture|composition|design|none\"}}.\n"
+        "Return ONLY a JSON object: {\"invention_type\": \"process|machine|manufacture|composition|design|none\"}.\n"
     ),
 
-    # -----------------------
-    # Detail extraction templates
-    # Each uses: {0}=summary, {1}=type_name, {2}=type_description, {3}=doc_uri (may be empty).
-    # IMPORTANT: Schema stays the same; we only make the content more explicit/detailed.
-    # -----------------------
-
+    # Detail extraction — method
     TPL_DETAIL_METHOD: (
         "### SYSTEM\n"
         "- You are a senior patent analyst.\n"
@@ -76,12 +91,12 @@ _TEMPLATES: Dict[str, str] = {
         "Short summary:\n{0}\n\n"
         "If available, a PDF is attached via URI (may be empty): {3}\n\n"
         "### REQUIRED OUTPUT SHAPE (schema-preserving)\n"
-        "- method_steps: array[string] — ordered, actionable steps with numbered prefixes, e.g., \"1) Acquire signal ...\".\n"
+        "- method_steps: array[string] — numbered, granular, covering ALL stages (inputs, processing, outputs).\n"
         "- assumptions: array[string]\n"
-        "- constraints: array[string]\n"
-        "Be chronological and specific; avoid vague phrasing.\n"
+        "- constraints: array[string] — include numeric targets if present.\n"
+        "Be chronological, exhaustive, and do not invent steps.\n"
     ),
-
+    # machine
     TPL_DETAIL_MACHINE: (
         "### SYSTEM\n"
         "- You are a senior patent analyst.\n"
@@ -94,19 +109,16 @@ _TEMPLATES: Dict[str, str] = {
         "Short summary:\n{0}\n\n"
         "If available, a PDF is attached via URI (may be empty): {3}\n\n"
         "### REQUIRED OUTPUT SHAPE (schema-preserving)\n"
-        "- components: array[object{{name, function, key_specs}}] — be granular; keep model numbers and key ratios in key_specs.\n"
-        "- subsystems: array[string] — system-level groupings (e.g., \"Cable drive system\").\n"
-        "- connections: array[string] — **explicit edges** in the form:\n"
-        "  \"order N: [FROM] -> [TO] via [INTERFACE/MEDIUM]; materials=[MATERIAL SPEC]; notes=[ROUTING/FASTENER/GEAR TYPE]\".\n"
-        "  Examples: \"order 1: Stepper motor (NEMA 17) -> Capstan drive via steel cable; materials=steel cable 7x7 1.2mm, PTFE-coated; notes=preload 30N, routed through idler pulleys P1,P2\".\n"
-        "  \"order 2: Capstan drive -> Elbow pulley via timing belt; materials=GT3 5MGT-9; notes=tension 40N\".\n"
-        "- operating_principles: array[string] — e.g., \"Cable-driven transmission\", \"Topology optimization for stiffness\".\n"
-        "- materials: array[string] — include detailed specs, e.g., \"Steel cable 7x7, 1.2 mm, pre-stretched\".\n"
-        "- sensors_actuators: array[string] — e.g., \"Stepper motors (NEMA 17, NEMA 23)\".\n"
-        "- constraints: array[string] — numeric targets preferred, e.g., \"Cost under $215\", \"0.63 kg payload\".\n"
-        "Keep `connections` strictly as strings but **always** include from/to, interface/medium, order, and material notes (steel cable specs if present).\n"
+        "- components: array[object{{name, function, key_specs}}]\n"
+        "- subsystems: array[string]\n"
+        "- connections: array[string] — explicit interfaces.\n"
+        "- operating_principles: array[string]\n"
+        "- materials: array[string]\n"
+        "- sensors_actuators: array[string]\n"
+        "- constraints: array[string]\n"
+        "Aim for exhaustive coverage of physical structure and interfaces.\n"
     ),
-
+    # manufacture
     TPL_DETAIL_MANUFACTURE: (
         "### SYSTEM\n"
         "- You are a senior patent analyst.\n"
@@ -119,14 +131,15 @@ _TEMPLATES: Dict[str, str] = {
         "Short summary:\n{0}\n\n"
         "If available, a PDF is attached via URI (may be empty): {3}\n\n"
         "### REQUIRED OUTPUT SHAPE (schema-preserving)\n"
-        "- article_components: array[object{{name, function}}] — granular parts list.\n"
-        "- materials: array[string] — include grades/specs (e.g., \"6061-T6\"), surface finishes, or cable specs if relevant.\n"
-        "- dimensions: array[string] — include units.\n"
-        "- manufacturing_steps: array[string] — ordered, numbered.\n"
-        "- assembly: array[string] — ordered, numbered, with joining methods.\n"
+        "- article_components: array[object{{name, function}}]\n"
+        "- materials: array[string]\n"
+        "- dimensions: array[string]\n"
+        "- manufacturing_steps: array[string]\n"
+        "- assembly: array[string]\n"
         "- tolerances: array[string]\n"
+        "Be complete across fabrication and assembly.\n"
     ),
-
+    # composition
     TPL_DETAIL_COMPOSITION: (
         "### SYSTEM\n"
         "- You are a senior patent analyst.\n"
@@ -139,13 +152,14 @@ _TEMPLATES: Dict[str, str] = {
         "Short summary:\n{0}\n\n"
         "If available, a PDF is attached via URI (may be empty): {3}\n\n"
         "### REQUIRED OUTPUT SHAPE (schema-preserving)\n"
-        "- constituents: array[object{{name, role, amount}}] — amounts may be ranges/percentages.\n"
-        "- synthesis_steps: array[string] — ordered, numbered.\n"
+        "- constituents: array[object{{name, role, amount}}]\n"
+        "- synthesis_steps: array[string]\n"
         "- properties: array[string]\n"
         "- use_cases: array[string]\n"
         "- constraints: array[string]\n"
+        "Cover all material facets that are present.\n"
     ),
-
+    # design
     TPL_DETAIL_DESIGN: (
         "### SYSTEM\n"
         "- You are a senior patent analyst.\n"
@@ -159,9 +173,46 @@ _TEMPLATES: Dict[str, str] = {
         "If available, a PDF is attached via URI (may be empty): {3}\n\n"
         "### REQUIRED OUTPUT SHAPE (schema-preserving)\n"
         "- ornamental_features: array[string]\n"
-        "- views: array[string] — reference figure names or viewpoints.\n"
+        "- views: array[string]\n"
         "- non_functional_statement: string\n"
         "- claim_scope_note: string\n"
+    ),
+
+    # Enumerate ALL novelty aspects
+    TPL_NOVELTY_ASPECTS: (
+        "### SYSTEM\n"
+        "- You are a senior patent analyst.\n"
+        "- Output MUST be valid JSON matching the schema exactly.\n\n"
+        "### TASK\n"
+        "From the provided invention details, enumerate ALL potential novelty aspects across:\n"
+        "mechanisms/approaches, components, materials, control/algorithms, geometry/topology, constraints/targets,\n"
+        "and applications. Use concise aspect labels (5–10 words each). Deduplicate.\n"
+        "Target 12–30 aspects if information allows.\n\n"
+        "### INPUTS\n"
+        "Invention type: {1}\n"
+        "Summary:\n{2}\n\n"
+        "Details JSON:\n{0}\n\n"
+        "### OUTPUT (STRICT)\n"
+        "{\"aspects\": [\"<aspect 1>\", \"<aspect 2>\", ...]}\n"
+    ),
+
+    # Single Scholar query (arXiv only)
+    # {0}=invention_type, {1}=summary, {2}=aspects (bullets)
+    TPL_SCHOLAR_SINGLE_QUERY: (
+        "### SYSTEM\n"
+        "- You are a literature search specialist.\n"
+        "- Produce ONE broad but relevant Google Scholar query string that aims to retrieve arXiv papers only.\n"
+        "- REQUIREMENTS:\n"
+        "  * The query MUST include `site:arxiv.org`.\n"
+        "  * Include 1–2 core domain phrases from the invention + 2–4 aspect terms (OR groups allowed).\n"
+        "  * Keep under 180 chars. Avoid NOT/wildcards.\n"
+        "- Output MUST be valid JSON with a single field `query`.\n\n"
+        "### INPUTS\n"
+        "Invention type: {0}\n"
+        "Summary:\n{1}\n\n"
+        "Candidate aspects:\n{2}\n\n"
+        "### OUTPUT (STRICT)\n"
+        "{\"query\": \"<single scholar query>\"}\n"
     ),
 }
 
@@ -190,16 +241,24 @@ _SYSTEMS: Dict[str, str] = {
 # -----------------------
 # Builders
 # -----------------------
+def _positional_sub(template: str, *args) -> str:
+    out = template
+    for i in sorted(range(len(args)), key=lambda x: -len(str(x))):
+        out = out.replace("{" + str(i) + "}", str(args[i]))
+    return out
+
+
 def build_prompt(template_key: str, *args) -> str:
     if template_key not in _TEMPLATES:
         raise KeyError(f"Unknown template_key: {template_key}")
-    return _TEMPLATES[template_key].format(*args)
+    return _positional_sub(_TEMPLATES[template_key], *args)
 
 
 def build_prompt_sys(system_key: str, template_key: str, *args) -> str:
     if system_key not in _SYSTEMS:
         raise KeyError(f"Unknown system_key: {system_key}")
-    return _SYSTEMS[system_key] + "\n" + build_prompt(template_key, *args)
+    combined = _SYSTEMS[system_key] + "\n" + _TEMPLATES[template_key]
+    return _positional_sub(combined, *args)
 
 
 def format_innovation_taxonomy_text(descriptions: Dict[str, str]) -> str:

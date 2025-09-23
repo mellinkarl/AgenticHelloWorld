@@ -1,7 +1,7 @@
 # amie/agents/schema/naa_schema.py
 # Schemas for NAA
 # Author: Harry
-# 2025-09-12
+# 2025-09-23
 
 from typing import Dict, Any
 
@@ -11,8 +11,7 @@ SCHEMA_INVENTION_TYPE: Dict[str, Any] = {
         "invention_type": {
             "type": "string",
             "enum": ["process", "machine", "manufacture", "composition", "design", "none"]
-        },
-        "rationale": {"type": "string"}
+        }
     },
     "required": ["invention_type"]
 }
@@ -120,10 +119,39 @@ SCHEMA_CPC_L1_CODES: Dict[str, Any] = {
     "items": {"type": "string"}
 }
 
-# Level-2 selection schema: arbitrary object mapping { "G05": "CONTROLLING; REGULATING", ... }
+# Level-2 selection schema: object mapping { "G05": "title", ... }
 SCHEMA_CPC_L2_DICT: Dict[str, Any] = {
     "type": "object",
     "additionalProperties": {"type": "string"}
+}
+
+# Enumerated novelty aspects (NO rationale)
+SCHEMA_NOVELTY_ASPECTS: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "aspects": {"type": "array", "items": {"type": "string"}}
+    },
+    "required": ["aspects"]
+}
+
+# Single Scholar query (arXiv only)
+SCHEMA_SCHOLAR_SINGLE_QUERY: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "query": {"type": "string"}
+    },
+    "required": ["query"]
+}
+
+# PDF compare result
+SCHEMA_COMPARE_RESULT: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "overlap": {"type": "array", "items": {"type": "string"}},
+        "novelty": {"type": "array", "items": {"type": "string"}},
+        "similarity": {"type": "number", "minimum": 0, "maximum": 100}
+    },
+    "required": ["overlap", "novelty", "similarity"]
 }
 
 __all__ = [
@@ -135,4 +163,7 @@ __all__ = [
     "SCHEMA_DESIGN_DETAILS",
     "SCHEMA_CPC_L1_CODES",
     "SCHEMA_CPC_L2_DICT",
+    "SCHEMA_NOVELTY_ASPECTS",
+    "SCHEMA_SCHOLAR_SINGLE_QUERY",
+    "SCHEMA_COMPARE_RESULT",
 ]
