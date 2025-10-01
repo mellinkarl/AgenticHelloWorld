@@ -20,18 +20,18 @@ def call_LLM(genai_client: genai.Client, model_name: str, content: types.Content
 
         try:    
 
-        resp = genai_client.models.generate_content(
-            model=model_name,
-            contents=content,
-            config=conf
-        )
+            resp = genai_client.models.generate_content(
+                model=model_name,
+                contents=content,
+                config=conf
+            )
 
-        text = resp.text
-        return json.loads(text)
+            text = resp.text
+            return json.loads(text)
 
-    except Exception as e:
-        print(f"LLM error: {e}")
-        return None
+        except Exception as e:
+            print(f"LLM error: {e}")
+            return None
     
 def multimedia_content(prompt: str,uri: str, m_type: str = "application/pdf") -> list:
     return [types.Part.from_uri(file_uri=uri, mime_type=m_type), prompt]
@@ -72,7 +72,7 @@ def generate_output(log: str, step1: dict | None = None, step2: dict | None = No
 
 
 
-def idca_node(state: GraphState, config) -> Dict[str, Any]:
+def idca_node(state: GraphState, config = None) -> Dict[str, Any]:
     """
     Invention Detection & Classification Agent (dummy):
     - Reads IA internals (normalized_uri) just to demonstrate cross-agent read.
@@ -153,6 +153,14 @@ def idca_node(state: GraphState, config) -> Dict[str, Any]:
     print(f"third llm call, response: {step3}")
 
     return generate_output("Invention detected", step1, step2, step3)
+
+
+def idca_node_dummy(state: GraphState, config = None):
+    return {
+        "runtime":   {"idca": {"status": "FINISHED", "route": []}},
+        "artifacts": {"idca": {"summary": "placeholder"}},
+        "internals": {"idca": {}},
+    }
 
 INVENTION_D_C = RunnableLambda(idca_node_dummy)
 
