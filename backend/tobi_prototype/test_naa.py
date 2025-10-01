@@ -5,19 +5,20 @@ from typing import List, Optional
 from google import genai
 from google.genai import types
 from google.cloud import bigquery
+from serpapi import GoogleSearch
 
 
 @dataclass
 class Patent:
     pub_num: str
     title: str
-    abstract: str
-    claims: List[str]
-    num_matches: int
+    snippet: str
+    pdf_link: str
+
 
 
 bq_client = bigquery.Client(project="aime-hello-world")
-genai_client = genai.Client(project="aime-hello-world", vertexai=True)
+genai_client = genai.Client(project="aime-hello-world", location="us-west1", vertexai=True)
 
 model = "gemini-2.0-flash-lite-001"
 src: str = "gs://aime-manuscripts/patent.pdf"
@@ -55,65 +56,109 @@ def multimedia_content(prompt: str,uri: str, m_type: str = "application/pdf") ->
 def response_schema(schema = dict, response_type: str = "application/json") -> types.GenerateContentConfig:
     return types.GenerateContentConfig(response_schema=schema, response_mime_type=response_type)
 
-def compare_novelty(prospect: Patent, potential_match: Patent):
+def generate_prompt(prompt: str, params: str, matches: int, max: int = 200, min: int = 10):
+    if params == "":
+        return prompt
     
+    fix = "too high, provide a more specific" if matches > 200 else "too low, provide a less specific" if matches < min else "a not satisfactory"
+
+    return f"""
+    Previously, you generated the group of synonyms {params}, which was {fix} group of synonyms.
+    {prompt}
+    """
+
+def build_prompt(l: list):
+    quoted_groups = [[f'"{w}"' for w in group] for group in l]
+
+    return " AND ".join(f"({' OR '.join(group)})" for group in quoted_groups)
 
 
-kw_prompt="Generate 5-20 keywords regarding this manuscript to perform novelty assessment on the invention and determine if the invention is novel. Therefore, the keywords should focus on what is built, the processes for which it is built, and specific details that would be important to a patent agent in searching for similar patents. Return the keywords as an array in JSON format"
-kw_schema={
-                "type": "object",
-                "properties": {
-                    "keywords": {"type": "array", "items": {"type": "string"}}
-                },
-                "required": ["keywords"]
+def fetch_matches(max_pages = 1, max_tries = 5):
+    tries = 0
+    old_output = ""
+    matches = 0
+
+    while True:
+
+        reprompt = False
+
+        synonym_prompt = f"""
+        Generate groups of synonyms to use for patent prior-art searching.
+        Each group should contain 3 closely related terms that could be used interchangeably.
+        Groups should collectively capture:
+        - What is built (the invention itself)
+        - How it works or what processes it performs
+        - Key technical details or domain-specific terms that a patent examiner would care about
+
+        Return the result as a nested JSON array in which each inner array is a group of synonyms.
+        """
+
+        prompt = generate_prompt(synonym_prompt, old_output, matches)
+
+        synonym_schema = {
+            "type": "object",
+            "properties": {
+                "synonym_groups": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "maxItems": 3
+                    }
+                }
+            },
+            "required": ["synonym_groups"]
+        }
+
+
+        sy = call_LLM(genai_client, model_name=model, content=multimedia_content(prompt, src), conf=response_schema(synonym_schema))
+        if sy is None:
+            print("keyword LLM call failed.")
+            quit()
+
+        query = build_prompt(sy["synonym_groups"])
+
+        pubs: list[Patent] = []
+
+        for page in range(1, max_pages + 1):
+            params = {
+                "engine": "google_patents",
+                "q": query,
+                "api_key": "c1399ae2d3bedfc7239371b16e0cb5650465fbc58220f7843606525644f7b468",
+                "page": page
             }
+            search = GoogleSearch(params)
+            results = search.get_dict()
 
-kw = call_LLM(genai_client, model_name=model, content=multimedia_content(kw_prompt, src), conf=response_schema(kw_schema))
-if kw is None:
-    print("keyword LLM call failed.")
-    quit()
-print(f"Generated keywords: {(kw := kw["keywords"])}")
+            if 10 > (matches := results.get("search_information", {}).get("total_results", -1)) or matches > 200:
 
-query = f"""
-DECLARE keywords ARRAY<STRING> DEFAULT @keywords;
+                old_output = str(sy)
+                tries+=1
+                reprompt = True
+                print(f"The query {query} generated {matches} results, reprompting for accuracy\n\n")
+                break
 
-WITH hits AS (
-  SELECT
-    p.publication_number,
-    COUNT(*) AS num_matching_claims
-  FROM `patents-public-data.patents.publications` p,
-       UNNEST(p.claims_localized) c,
-       UNNEST(keywords) kw
-  WHERE LOWER(c.text) LIKE CONCAT('%', LOWER(kw), '%')
-  GROUP BY p.publication_number
-)
+            if "organic_results" not in results or not results["organic_results"]:
+                print(f"No results on page {page}, stopping early.")
+                return pubs
+            print(f"query success, matched {matches} patents")
+            for pub in results["organic_results"]:
+                pubs.append(
+                    Patent(
+                        pub.get("publication_number", "no publication number available"),
+                        pub.get("title", "no title available"),
+                        pub.get("snippet", "no snippet available"),
+                        pub.get("pdf", "no pdf available")
+                    )
+                )
+        if not reprompt:
+            return pubs
+        if tries >= max_tries:
+            return None
+        
 
-SELECT
-  p.publication_number AS pub_num,
-  (SELECT STRING_AGG(t.text, ' ')
-     FROM UNNEST(p.title_localized) t
-     WHERE t.language = 'en') AS title,
-  (SELECT STRING_AGG(a.text, ' ')
-     FROM UNNEST(p.abstract_localized) a
-     WHERE a.language = 'en') AS abstract,
-  ARRAY_AGG(cl.text ORDER BY pos) AS claims,
-  h.num_matching_claims AS num_matches
-FROM `patents-public-data.patents.publications` p
-JOIN hits h USING (publication_number)
-LEFT JOIN UNNEST(p.claims_localized) AS cl WITH OFFSET AS pos
-GROUP BY pub_num, title, abstract, num_matches
-ORDER BY num_matches DESC
-LIMIT 10;
-"""
+def compare_novelty(prospect: Patent, potential_match: Patent):
+    ...
 
-job_config = bigquery.QueryJobConfig(
-    query_parameters=[
-        bigquery.ArrayQueryParameter("keywords", "STRING", kw),
-        bigquery.ScalarQueryParameter("cutoff_date", "DATE", date)
-    ]
-)
 
-results = bq_client.query(query, job_config=job_config).result()
-
-for row in results:
-    print(row.publication_number, row.title_localized)
+pubs = fetch_matches()
