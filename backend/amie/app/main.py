@@ -274,6 +274,9 @@ async def get_state(request_id: str):
 
 @app.get("/debug_state/{request_id}")
 async def debug_state(request_id: str):
+    if request_id == "_":
+        return await app.state.store.get_all()
+
     state = await app.state.store.get_state(request_id)
     if not state:
         raise HTTPException(status_code=404, detail="Unknown request_id")
