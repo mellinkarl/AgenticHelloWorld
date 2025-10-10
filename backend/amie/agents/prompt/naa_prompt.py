@@ -22,10 +22,10 @@ TPL_DETAIL_DESIGN = "detail_design"
 # Enumerate novelty aspects
 TPL_NOVELTY_ASPECTS = "novelty_aspects"
 
-# Single Google Scholar query (for arXiv only)
+# Single Google Scholar query (generic; no arXiv restriction)
 TPL_SCHOLAR_SINGLE_QUERY = "scholar_single_query"
 
-# PDF vs PDF comparison
+# PDF vs PDF comparison (retained for future use)
 TPL_COMPARE_PDFS = (
     "### SYSTEM\n"
     "- You are a senior patent analyst.\n"
@@ -196,14 +196,14 @@ _TEMPLATES: Dict[str, str] = {
         "{\"aspects\": [\"<aspect 1>\", \"<aspect 2>\", ...]}\n"
     ),
 
-    # Single Scholar query (arXiv only)
+    # Single Scholar query (generic; PDF optional; no site constraint)
     # {0}=invention_type, {1}=summary, {2}=aspects (bullets)
     TPL_SCHOLAR_SINGLE_QUERY: (
         "### SYSTEM\n"
         "- You are a literature search specialist.\n"
-        "- Produce ONE broad but relevant Google Scholar query string that aims to retrieve arXiv papers only.\n"
+        "- Produce ONE relevant Google Scholar query string to retrieve core literature about the invention.\n"
         "- REQUIREMENTS:\n"
-        "  * The query MUST include `site:arxiv.org`.\n"
+        "  * Avoid site/domain restrictions; the query should be broadly useful.\n"
         "  * Include 1–2 core domain phrases from the invention + 2–4 aspect terms (OR groups allowed).\n"
         "  * Keep under 180 chars. Avoid NOT/wildcards.\n"
         "- Output MUST be valid JSON with a single field `query`.\n\n"

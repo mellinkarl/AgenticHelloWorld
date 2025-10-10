@@ -134,7 +134,7 @@ SCHEMA_NOVELTY_ASPECTS: Dict[str, Any] = {
     "required": ["aspects"]
 }
 
-# Single Scholar query (arXiv only)
+# Single Scholar query (generic)
 SCHEMA_SCHOLAR_SINGLE_QUERY: Dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -143,7 +143,7 @@ SCHEMA_SCHOLAR_SINGLE_QUERY: Dict[str, Any] = {
     "required": ["query"]
 }
 
-# PDF compare result
+# PDF compare result (retained for future use)
 SCHEMA_COMPARE_RESULT: Dict[str, Any] = {
     "type": "object",
     "properties": {
