@@ -22,3 +22,7 @@ class InMemoryStore:
     async def get_state(self, request_id: str) -> GraphState:
         async with self._lock:
             return deepcopy(self._data.get(request_id, GraphState()))
+
+    async def get_all(self) ->  Dict[str, GraphState]:
+        async with self._lock:
+            return deepcopy(self._data)
