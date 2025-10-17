@@ -126,7 +126,7 @@ def idca_node(state: GraphState, config = None) -> Dict[str, Any]:
                     "properties": {
                         "title": {"type": "string"},
                         "authors": {"type": "array", "items": {"type": "string"}},
-                        "publish_date": {"type": ["string", "null"], "format": "date", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+                        "publish_date": {"type": "string", "format": "date", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
                         "manuscript_type": {"type": "string"},
                         "fields_needed": {"type": "array", "items": {"type": "string"}}
                     },
