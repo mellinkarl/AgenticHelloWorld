@@ -4,13 +4,28 @@
 # 2025-08-18
 
 import json
-from typing import Dict, Any
+import time
+from datetime import timezone, datetime
+from typing import Dict, Any, Literal
 from langchain_core.runnables import RunnableLambda
 from google import genai
 from google.genai import types
 from ..state import GraphState
 
 model = "gemini-2.0-flash-lite-001"
+
+
+def _push_status(internal: dict, msg: str) -> None:
+    """
+    Append a timestamped status entry to internals.<agent>.status_history
+    and mirror the latest entry to internals.<agent>.status_str for convenience.
+    """
+    def _now_iso() -> str:
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d-%H-%M-%S")
+    history = internal.setdefault("status_history", [])
+    entry = f"{_now_iso()} - {msg}"
+    history.append(entry)
+    internal["status_str"] = entry
 
 def call_LLM(genai_client: genai.Client, model_name: str, content: types.ContentListUnionDict, conf: types.GenerateContentConfigOrDict | None = None, repeats = 5) -> dict | None:
     
@@ -27,24 +42,27 @@ def call_LLM(genai_client: genai.Client, model_name: str, content: types.Content
             )
 
             text = resp.text
-            return json.loads(text)
+            assert text is not None, "LLM did not respond"
+            return json.loads(text.strip())
 
         except Exception as e:
             print(f"LLM error: {e}")
-            return None
+    
+    return None
     
 def multimedia_content(prompt: str,uri: str, m_type: str = "application/pdf") -> list:
     return [types.Part.from_uri(file_uri=uri, mime_type=m_type), prompt]
 
-def response_schema(schema = dict, response_type: str = "application/json") -> types.GenerateContentConfig:
+def response_schema(schema: dict, response_type: str = "application/json") -> types.GenerateContentConfig:
     return types.GenerateContentConfig(response_schema=schema, response_mime_type=response_type)
 
 
-def generate_output(log: str, step1: dict | None = None, step2: dict | None = None, step3: dict | None = None) -> dict:
+def generate_output(message: str, internal: dict, run_status: str = "FINISHED", step1: dict | None = None, step2: dict | None = None, step3: dict | None = None) -> dict:
 
     artifacts = {}
     cache = {}
 
+    _push_status(internal, message)
     artifacts["status"] = "absent"
 
     if step1:
@@ -62,29 +80,38 @@ def generate_output(log: str, step1: dict | None = None, step2: dict | None = No
     if step3:
         artifacts["summary"] = step3["summary"]
 
+    internals = {**internal, **cache}
+
     return {
-        "runtime":   {"idca": {"status": "FINISHED", "route": []}},
+        "runtime":   {"idca": {"status": f"{run_status}", "route": []}},
         "artifacts": {"idca": artifacts},
-        "internals": {"idca": cache},
-        "logs": [log]
+        "internals": {"idca": internals},
+
     }
 
 
 
 
 def idca_node(state: GraphState, config = None) -> Dict[str, Any]:
+
+    idca_int = state.setdefault("internals", {}).setdefault("idca", {})
+
     """
     Invention Detection & Classification Agent (dummy):
     - Reads IA internals (normalized_uri) just to demonstrate cross-agent read.
     - Emits a tiny 'idca' artifact.
     """
     print("start idca")
+    _push_status(idca_int, "initializing idca")
 
     ia_cache = (state.get("internals") or {}).get("ia") or {}
     src = state.get("doc_gcs_uri")
+
+    assert config is not None, "genai_client missing in config['configurable']"
+    assert src is not None, "gcs uri is missing in state['doc_gcs_uri']"
+
     genai_client = config["configurable"]["genai_client"]
 
-    assert genai_client is not None, "genai_client missing in config['configurable']"
     assert isinstance(genai_client, genai.Client), f"genai_client wrong type: {type(genai_client)}"
 
     """
@@ -92,6 +119,7 @@ def idca_node(state: GraphState, config = None) -> Dict[str, Any]:
     - Determine what type of manuscript it is.
     - Determine fields needed to understand manuscript
     """
+    _push_status(idca_int, "Step 1: classifying manuscript type and needed fields")
     step1_prompt="Read this manuscript. Determine the title, the author, the publish date, and determine what fields are needed to understand the subject matter of this manuscript. If you cannot find the publish date, or are not sure if the date found is the true publish date or something else, make publish_date null, otherwise, make publish_date the date found in RFC 3339, section 5.6 format "
     step1_schema={
                     "type": "object",
@@ -107,14 +135,15 @@ def idca_node(state: GraphState, config = None) -> Dict[str, Any]:
     
     step1 = call_LLM(genai_client, model_name=model, content=multimedia_content(step1_prompt, src), conf=response_schema(step1_schema))
     if step1 is None:
-        return generate_output("LLM malfunctioned in step 1")
+        return generate_output("LLM malfunctioned in step 1", idca_int, run_status="FAILED")
     print(f"first llm call, response: {step1}")
-
+    _push_status(idca_int, "Step 1 completed")
+    _push_status(idca_int, "Step 2: Determining if an invention is present.")
     """
     Step 2 - Identify Invention:
     - Determine if an invention is = Present | Implied | Absent
     """
-    step2_prompt = f"You are a patent reviewer responsible for assessing from the following paper, what type of paper this is (research paper, patent application, resume, etc), and if the potential patent is describing a = process | product | both | unknown, and if an invention is = present | implied | absent. Attached is a manuscript, and your job is to: DETERMINE WHAT INVENTION IS SOUGHT TO BE PATENTED: (1) Identify and Understand Any Utility for the Invention, The claimed invention as a whole must be useful. The purpose of this requirement is to limit patent protection to inventions that possess a certain level of “real world” value, as opposed to subject matter that represents nothing more than an idea or concept, or is simply a starting point for future investigation or research; (2) Review the Detailed Disclosure and Specific Embodiments of the Invention To Understand What the Applicant Has Asserted as the Invention, The written description will provide the clearest explanation of the invention, by exemplifying the invention, explaining how it relates to the prior art and explaining the relative significance of various features of the invention; (3) Review the Claims, When performing claim analysis, examine each claim as a whole, giving it the broadest reasonable interpretation in light of the specification. Identify and evaluate every limitation—steps for processes, structures/materials for products—and correlate them with the disclosure. Consider grammar and plain meaning, but remember optional or intended-use language may not limit scope. Do not import limitations from the specification into the claim, and always interpret means/step-plus-function terms with their disclosed structures and equivalents. Finally, provide reasoning for your decision. Output in a JSON format strictly, with only the fields 'patent_type': 'process': Literal('process', 'product', 'both', 'unknown') 'status': Literal('present', 'implied', 'absent') and 'reasoning': str"
+    step2_prompt = f"You are a patent reviewer responsible for assessing from the following paper, what type of paper this is (research paper, patent application, resume, etc), and if the potential patent is describing a = method | apparatus | both | unknown, and if an invention is = present | implied | absent. Attached is a manuscript, and your job is to: DETERMINE WHAT INVENTION IS SOUGHT TO BE PATENTED: (1) Identify and Understand Any Utility for the Invention, The claimed invention as a whole must be useful. The purpose of this requirement is to limit patent protection to inventions that possess a certain level of “real world” value, as opposed to subject matter that represents nothing more than an idea or concept, or is simply a starting point for future investigation or research; (2) Review the Detailed Disclosure and Specific Embodiments of the Invention To Understand What the Applicant Has Asserted as the Invention, The written description will provide the clearest explanation of the invention, by exemplifying the invention, explaining how it relates to the prior art and explaining the relative significance of various features of the invention; (3) Review the Claims, When performing claim analysis, examine each claim as a whole, giving it the broadest reasonable interpretation in light of the specification. Identify and evaluate every limitation—steps for processes, structures/materials for products—and correlate them with the disclosure. Consider grammar and plain meaning, but remember optional or intended-use language may not limit scope. Do not import limitations from the specification into the claim, and always interpret means/step-plus-function terms with their disclosed structures and equivalents. Finally, provide reasoning for your decision. Output in a JSON format strictly, with only the fields 'patent_type': Literal('method', 'apparatus', 'both', 'unknown') 'status': Literal('present', 'implied', 'absent') and 'reasoning': str"
     step2_schema={
                     "type": "object",
                     "properties": {
@@ -127,16 +156,19 @@ def idca_node(state: GraphState, config = None) -> Dict[str, Any]:
 
     step2 = call_LLM(genai_client, model_name=model, content=multimedia_content(step2_prompt, src), conf=response_schema(step2_schema))
     if step2 is None:
-        return generate_output("LLM malfunctioned in step 2", step1)
+        return generate_output("LLM malfunctioned in step 2", idca_int, run_status="FAILED", step1=step1)
     print(f"second llm call, response: {step2}")
-
     """
     Step 3 - Summarize:
     - If invention is present, summarize in natural language
     """
     if step2["status"] != "present":
         # No invention, skip summary and jump to AA
-        return generate_output("Invention is not present", step1, step2)
+        _push_status(idca_int, "Step 2 completed, no invention detected")
+        return generate_output("Invention is not present", idca_int, run_status="FINISHED", step1=step1, step2=step2)
+    
+    _push_status(idca_int, "Step 2 completed")
+    _push_status(idca_int, "Step 3: Summarizing invention.")
 
     step3_prompt = "You are preparing text to be used for vector embeddings in a patent novelty search. From the following manuscript or patent document, generate a compact technical summary of the invention suitable for semantic search. The summary should: Clearly state what the invention is (object, system, or method), List the essential technical features and constraints (materials, dimensions, conditions, ranges, negative limitations), Include the functional purpose (what problem it solves or effect it achieves), Use concise technical natural language (avoid boilerplate like “the present invention relates to”), Normalize units and terminology (e.g., “5 °C” not “five degrees Celsius”), limit to 200-300 words, no filler sentences"
     step3_schema={
@@ -149,10 +181,10 @@ def idca_node(state: GraphState, config = None) -> Dict[str, Any]:
 
     step3 = call_LLM(genai_client, model_name=model, content=multimedia_content(step3_prompt, src), conf=response_schema(step3_schema))
     if step3 is None:
-        return generate_output("LLM malfunctioned in step 3", step1, step2)
+        return generate_output("LLM malfunctioned in step 3", idca_int, run_status="FAILED", step1=step1, step2=step2)
     print(f"third llm call, response: {step3}")
-
-    return generate_output("Invention detected", step1, step2, step3)
+    _push_status(idca_int, "Step 3 completed")
+    return generate_output("Invention detected", idca_int, run_status="FINISHED", step1=step1, step2=step2, step3=step3)
 
 
 def idca_node_dummy(state: GraphState, config = None):
@@ -160,7 +192,8 @@ def idca_node_dummy(state: GraphState, config = None):
         "runtime":   {"idca": {"status": "FINISHED", "route": []}},
         "artifacts": {"idca": {"summary": "placeholder"}},
         "internals": {"idca": {}},
+
     }
 
-INVENTION_D_C = RunnableLambda(idca_node_dummy)
+INVENTION_D_C = RunnableLambda(idca_node)
 

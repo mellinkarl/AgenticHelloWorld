@@ -4,9 +4,11 @@
 # 2025-09-12
 
 from __future__ import annotations
-
+from typing import Literal
+import time
 import os
 import tempfile
+from datetime import timezone
 from datetime import datetime as _dt
 from typing import Dict, Any, Tuple, Optional, List
 
@@ -16,6 +18,21 @@ from langchain_core.runnables import RunnableLambda
 from ..state import GraphState
 
 # --------------------------- utils: parse gs:// and download ---------------------------
+
+
+def _push_status(internal: dict, msg: str) -> None:
+    """
+    Append a timestamped status entry to internals.<agent>.status_history
+    and mirror the latest entry to internals.<agent>.status_str for convenience.
+    """
+    def _now_iso() -> str:
+        return _dt.now(timezone.utc).strftime("%Y-%m-%d-%H-%M-%S")
+
+    history = internal.setdefault("status_history", [])
+    entry = f"{_now_iso()} - {msg}"
+    history.append(entry)
+    internal["status_str"] = entry
+
 
 def _parse_gs_url(uri: str) -> Tuple[str, str]:
     if not isinstance(uri, str) or not uri.startswith("gs://"):
@@ -108,10 +125,15 @@ def _compose_local_path(request_id: str, ext: str) -> str:
 # --------------------------- IA node ---------------------------
 
 def ia_node(state: GraphState) -> Dict[str, Any]:
+
+    ia_int = state.setdefault("internals", {}).setdefault("ia", {})
+    _push_status(ia_int, "initializing ia")
+
     request_id = str(state.get("request_id") or "")
     uri = state.get("doc_gcs_uri") or state.get("doc_local_uri") or ""
     messages: List[str] = []
 
+    _push_status(ia_int, "validating input uri")
     print(f"[IA] start | request_id={request_id or 'n/a'} uri={uri or 'None'}")
     messages.append(f"IA start | request_id={request_id or 'n/a'} uri={uri or 'None'}")
 
@@ -126,6 +148,9 @@ def ia_node(state: GraphState) -> Dict[str, Any]:
             "message": messages,
         }
 
+
+    _push_status(ia_int, "downloading from GCS")
+    
     try:
         dl = _download_gcs(uri)
         print(f"[IA] download ok={dl.get('ok')} size={dl.get('size')} ct={dl.get('content_type')}")
@@ -166,6 +191,7 @@ def ia_node(state: GraphState) -> Dict[str, Any]:
     data_bytes: bytes = bytes(dl["data"])
 
     if ext == ".pdf" or ct.lower() == "application/pdf" or obj_name.lower().endswith(".pdf"):
+        _push_status(ia_int, "verifying PDF integrity")
         try:
             _assert_pdf_or_raise(data_bytes)
             print("[IA] PDF validation ok")
@@ -188,7 +214,7 @@ def ia_node(state: GraphState) -> Dict[str, Any]:
                 "internals": {},
                 "message": messages,
             }
-
+    _push_status(ia_int, "writing to local cache")
     try:
         local_path = _compose_local_path(request_id or "unknown", ext)
         with open(local_path, "wb") as f:
@@ -206,7 +232,7 @@ def ia_node(state: GraphState) -> Dict[str, Any]:
             "internals": {},
             "message": messages,
         }
-
+    _push_status(ia_int, "done. returning")
     art: Dict[str, Any] = {
         "doc_gcs_uri": uri,
         "bucket": dl.get("bucket"),
