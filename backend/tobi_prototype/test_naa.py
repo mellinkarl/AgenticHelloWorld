@@ -1,10 +1,11 @@
 import json
+import requests
 from dataclasses import dataclass
 from typing import List, Optional
 
 from google import genai
 from google.genai import types
-from google.cloud import bigquery
+from google.cloud import bigquery, storage
 from serpapi import GoogleSearch
 
 
@@ -14,11 +15,15 @@ class Patent:
     title: str
     snippet: str
     pdf_link: str
+    gs_link: str | None = None
+    report: str | None = None
 
-
-
-bq_client = bigquery.Client(project="aime-hello-world")
-genai_client = genai.Client(project="aime-hello-world", location="us-west1", vertexai=True)
+gpc_project_name = "aime-hello-world"
+gs_bucket_name = "aime-manuscripts"
+s_client = storage.Client()
+bucket = s_client.bucket(gs_bucket_name)
+bq_client = bigquery.Client(project=gpc_project_name)
+genai_client = genai.Client(project=gpc_project_name, location="us-west1", vertexai=True)
 
 model = "gemini-2.0-flash-lite-001"
 src: str = "gs://aime-manuscripts/patent.pdf"
@@ -50,8 +55,11 @@ def call_LLM(genai_client: genai.Client, model_name: str, content: types.Content
     
     return output
     
-def multimedia_content(prompt: str,uri: str, m_type: str = "application/pdf") -> list:
-    return [types.Part.from_uri(file_uri=uri, mime_type=m_type), prompt]
+def multimedia_content(prompt: str,uris: str | list[str], m_type: str = "application/pdf") -> list:
+
+    parts = [types.Part.from_uri(file_uri=uri, mime_type=m_type) for uri in uris] if isinstance(uris, list) else [types.Part.from_uri(file_uri=uris, mime_type=m_type)]
+    parts.append(prompt)
+    return parts
 
 def response_schema(schema = dict, response_type: str = "application/json") -> types.GenerateContentConfig:
     return types.GenerateContentConfig(response_schema=schema, response_mime_type=response_type)
@@ -141,7 +149,7 @@ def fetch_matches(max_pages = 1, max_tries = 5):
             if "organic_results" not in results or not results["organic_results"]:
                 print(f"No results on page {page}, stopping early.")
                 return pubs
-            print(f"query success, matched {matches} patents")
+            print(f"query {query} success, matched {matches} patents")
             for pub in results["organic_results"]:
                 pubs.append(
                     Patent(
@@ -162,3 +170,54 @@ def compare_novelty(prospect: Patent, potential_match: Patent):
 
 
 pubs = fetch_matches()
+
+if pubs is None:
+    quit()
+
+def upload_to_gcs(pubs: list[Patent] | None):
+
+    if pubs is None:
+        return
+
+    for pub in pubs:
+        if not isinstance((pdf := pub.pdf_link), str):
+            continue
+        try:
+            resp = requests.get(pdf, timeout=60)
+            resp.raise_for_status()
+            pdf_bytes = resp.content
+
+            blob = bucket.blob(pub_path := (f"matches/{pub.pub_num}.pdf"))
+            blob.upload_from_string(pdf_bytes, content_type="application/pdf")
+            pub.gs_link = f"gs://{gs_bucket_name}/{pub_path}"
+        except:
+            continue
+
+upload_to_gcs(pubs)
+
+matches = [pub for pub in pubs if pub.gs_link]
+
+for match in matches:
+    resp = genai_client.models.generate_content(
+                model=model,
+                contents=multimedia_content("For all inventions claimed in the first patent, create a description of similarity in the second patent, detailing the method/process, as to evaulate the similarity between the two novel features and determine patentability", [src, match.gs_link])
+            )
+    match.report = resp.text
+
+summaries = "For the manuscript attached, we are determining patentability by evaluating its novelty statements and comparing them to similar matches. First of all, generate a rubric to evaluate novelty, based on the manuscript attached. The following text is the similarity report for each match. After evaluating every one, generate a similarity score percentage with reasoning, assuring that you evaluate every paper on the same scale. At the end, return the scale by which you evaluated, then the scores for each match."
+
+for match in matches:
+
+    summaries += f"""
+
+    for {match.title}:
+    
+    {match.report}
+
+"""
+    
+resp = genai_client.models.generate_content(
+    model=model,
+    contents=summaries
+    )
+match.report = resp.text
