@@ -127,16 +127,19 @@ PYTHONDONTWRITEBYTECODE=1 uvicorn amie.app.main:app --host 0.0.0.0 --port 8000 -
 ### Upload file (only accept .pdf and image format)
 
 #### Local Bcakend Test
+##### for pdf
 ```bash
 curl -F "file=@/Users/harryzhang/git/AgenticHelloWorld/test_Docs/2507.15693v1.pdf" http://localhost:8000/upload-file 
 # + "return_signed_url=true" will return signed_url
-
+```
+##### for image
+```bash
 curl -F "file=@/path/to/image.png" http://localhost:8000/upload-file
 ```
 
 ##### response:
 ```json
-{"bucket":"aime-hello-world-amie-uswest1","object":"amie/tmp/51244eb813534209aac63841218bf44c.pdf","gs_url":"gs://aime-hello-world-amie-uswest1/amie/tmp/51244eb813534209aac63841218bf44c.pdf","content_type":"application/pdf","size":36593100,"lifecycle":{"delete_after_days":7,"matches_prefix":"amie/tmp/","matches_suffix":[".pdf",".png",".jpg",".jpeg",".webp",".gif",".bmp",".tiff",".tif"]},"signed_url":"https://storage.googleapis.com/aime-hello-world-amie-uswest1/amie/tmp/51244eb813534209aac63841218bf44c.pdf?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=amie-agent-sa%40aime-hello-world.iam.gserviceaccount.com%2F20250904%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20250904T013331Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=82e6f985a6b3dbde5950524036ebd51ff605bf9709252e62b63ac0111136cc100835fc060f4d1fa5a8ccb770b0470bce7321dc3604e073b62a9c392e08f41f04da20ec5d9ac9339c037b5986e2294114f197b90fd13b861c95a5619adfb908a0acdfd8688bfee802b36e3c383659557fb3a38bc6b5797f4c83dbd42cf949f29cb065a90d45ceecd7fcfe4b62b715df38b2e0b6b426f8bbac0b88b2419239582bd88b7b4b7d0d81b01f433f72f6512e1f4f1badc69c9956681c95fa19a79857f2d0a4fc02023643f4911a02c4e71a12ee2da2261e21c67bbfd21d46d5f60271892d068dd486f3f59b733a012a624898c0d43b1835e734cf69c1cece2644b3bf6f","signed_url_expires_in":604800,"suggested_invoke_payload":{"gcs_url":"gs://aime-hello-world-amie-uswest1/amie/tmp/51244eb813534209aac63841218bf44c.pdf","metadata":{"source":"upload-file"}}}%
+{"bucket":"aime-hello-world-amie-uswest1","object":"amie/tmp/8d5a5f947ac94c0ea4ed7e0c91f53150.pdf","doc_gcs_uri":"gs://aime-hello-world-amie-uswest1/amie/tmp/8d5a5f947ac94c0ea4ed7e0c91f53150.pdf","content_type":"application/pdf","size":36593100,"lifecycle":{"delete_after_days":7,"matches_prefix":"amie/tmp/","matches_suffix":[".pdf",".png",".jpg",".jpeg",".webp",".gif",".bmp",".tiff",".tif"]},"suggested_invoke_payload":{"doc_gcs_uri":"gs://aime-hello-world-amie-uswest1/amie/tmp/8d5a5f947ac94c0ea4ed7e0c91f53150.pdf","metadata":{"source":"upload-file"}}}%  
 ```
 #### Frontend use GET_URL to directely submit to GCS
 ```
@@ -154,27 +157,21 @@ POST /invoke
 curl -X POST "http://127.0.0.1:8000/invoke" \
      -H "Content-Type: application/json" \
      -d '{
-           "gcs_url": "gs://aime-hello-world-amie-uswest1/amie/tmp/51244eb813534209aac63841218bf44c.pdf",
-           "metadata": {
-             "author": "John Smith",
-             "field": "Artificial Intelligence",
-             "journal": "Nature",
-             "year": 2024
-           }
+           "gcs_url": "gs://aime-hello-world-amie-uswest1/amie/pdf/99ceacacd5044a2eaa715a1657bff9ee.pdf"
          }'
 ```
 
 **Response Example:**
 ```json
 {
-  "request_id": "915ff1d7-6f21-491b-b807-2c59f3bc7bb8"
+  "request_id": "6c8d7508-6b9f-4505-8bc8-39e6cef94e07"
 }
 ```
 
 ### Query Processing Status
 
 ```bash
-curl -X GET http://127.0.0.1:8000/state/{915ff1d7-6f21-491b-b807-2c59f3bc7bb8} | jq -S . 
+curl -X GET http://127.0.0.1:8000/state/{86e2af77-2191-49fc-b513-e32f118c3141} | jq -S . 
 ```
 
 **Response Example:**
@@ -185,7 +182,8 @@ curl -X GET http://127.0.0.1:8000/state/{915ff1d7-6f21-491b-b807-2c59f3bc7bb8} |
 ### Debug State Query
 
 ```bash
-curl -X GET http://127.0.0.1:8000/debug_state/{915ff1d7-6f21-491b-b807-2c59f3bc7bb8} | jq -S . 
+curl -X GET http://127.0.0.1:8000/debug_state/{f263c5ce-062e-44de-92eb-f728aa04ced4} | jq -S . 
+
 ```
 #### Example output:
 ```json

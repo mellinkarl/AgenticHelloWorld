@@ -118,7 +118,7 @@ def frontend_view(state: GraphState) -> Dict[str, Any]:
     artifacts = state.get("artifacts") or {}
     return {
         "request_id": state.get("request_id"),
-        "status": state.get("status"),
+        "a": state.get("status"),
         "created_at": state.get("created_at"),
         "updated_at": state.get("updated_at"),
         "report": artifacts.get("report") or {},   # ONLY expose final report

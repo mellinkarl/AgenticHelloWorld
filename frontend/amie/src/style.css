@@ -1,0 +1,71 @@
+:root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; line-height: 1.4; }
+body { margin: 0; padding: 0 1rem 3rem; background: #0b0e13; color: #e7eef7; }
+h1, h2, h3 { margin: 1rem 0 0.5rem; }
+#app { max-width: 1200px; margin: 0 auto; }
+header { position: sticky; top: 0; background: #0b0e13; padding: 1rem 0; border-bottom: 1px solid #1b2533; margin-bottom: 1rem; }
+section { margin: 1.25rem 0; padding: 1rem; border: 1px solid #1b2533; border-radius: 12px; background: #0f141c; }
+.row { display: grid; grid-template-columns: 140px 1fr; gap: 0.5rem 1rem; align-items: center; margin: 0.5rem 0; }
+input[type="text"], input[type="number"] { width: 100%; padding: 0.5rem; border-radius: 8px; border: 1px solid #2a3a4f; background: #0c121a; color: #e7eef7; }
+button { padding: 0.5rem 0.9rem; border-radius: 8px; border: 1px solid #2a3a4f; background: #101723; color: #e7eef7; cursor: pointer; }
+button:hover { background: #132032; }
+.panel { background: #0a0f16; border: 1px solid #1b2533; border-radius: 8px; padding: 0.75rem; max-height: 460px; overflow: auto; }
+.inline { margin-left: 1rem; }
+code { background: #0a0f16; padding: 0.15rem 0.3rem; border-radius: 6px; border: 1px solid #1b2533; }
+.muted { opacity: .75; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+
+/* custom file row */
+.file-row { display: flex; align-items: center; gap: .75rem; margin-bottom: .5rem; }
+#file-name { font-size: .95rem; }
+
+/* JSON viewer */
+.json { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+.json details { margin-left: 1rem; }
+.json .kv { margin: .1rem 0; }
+.json .k { color: #9fc5ff; }
+.json .v-str { color: #ffe59f; }
+.json .v-num { color: #b0ffa7; }
+.json .v-bool { color: #ffb0b0; }
+.json .v-null { color: #bbb; font-style: italic; }
+.json .root { margin: 0; }
+
+/* Dashboard cards */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+.card {
+  background: #0c1118;
+  border: 1px solid #1b2533;
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-height: 180px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.card-hd { display: flex; justify-content: space-between; align-items: center; }
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px;
+  border: 1px solid #2a3a4f; background: #0f1723; color: #cfe3ff;
+}
+.badge.ok { border-color: #1e4731; color: #b7ffcf; }
+.badge.run { border-color: #51451e; color: #ffe7a7; }
+.badge.err { border-color: #5b2222; color: #ffb3b3; }
+.badge.dim { opacity: .8; }
+
+.kv { display: grid; grid-template-columns: 120px 1fr; gap: 6px 10px; }
+.kv .k { color: #9fc5ff; }
+.summary { white-space: pre-wrap; max-height: 120px; overflow: auto; border: 1px dashed #263346; border-radius: 8px; padding: 6px; }
+
+.route { margin-top: 6px; font-size: 13px; opacity: .9; }
+.route .arrow { opacity: .8; }
+
+/* status colors for RunStatus */
+.badge-PENDING { border-color: #3a3a54; color: #d2d2ff; }
+.badge-RUNNING { border-color: #51451e; color: #ffe7a7; }
+.badge-FINISHED { border-color: #1e4731; color: #b7ffcf; }
+.badge-FAILED { border-color: #5b2222; color: #ffb3b3; }
+
+/* extra for IDCA invention status */
+.idca-present { color: #b7ffcf; }
+.idca-implied, .idca-absent { color: #ffd2b7; }
