@@ -54,6 +54,18 @@ SIGNED_URL_TTL_SECONDS = int(os.environ.get("SIGNED_URL_TTL_SECONDS", str(7 * 24
 def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d-%H-%M-%S")
 
+def _push_status(internal: dict, msg: str) -> None:
+    """
+    Append a timestamped status entry to internals.<agent>.status_history
+    and mirror the latest entry to internals.<agent>.status_str for convenience.
+    """
+    def _now_iso() -> str:
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d-%H-%M-%S")
+    history = internal.setdefault("status_history", [])
+    entry = f"{_now_iso()} - {msg}"
+    history.append(entry)
+    internal["status_str"] = entry
+
 def _truncate(s: str, n: int = 80) -> str:
     s = s or ""
     return s if len(s) <= n else s[:n] + "..."
@@ -211,6 +223,9 @@ def _gcs_upload_bytes(storage_client: storage.Client, bucket_name: str, object_p
 # Early-exit (FAILED) helper
 # ---------------------------------------------------------------------
 def _fail(msg: str, state: GraphState, *, internals_note: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    naa_internals = state.setdefault("internals", {}).setdefault("naa", {})
+    _push_status(naa_internals, f"failed: {msg}")
+
     idca = (state.get("artifacts", {}) or {}).get("idca", {}) if isinstance(state.get("artifacts"), dict) else {}
     summary = idca.get("summary", "") if isinstance(idca, dict) else ""
     doc_gcs_uri = idca.get("doc_gcs_uri") if isinstance(idca, dict) and idca.get("doc_gcs_uri") else state.get("doc_gcs_uri", "")
@@ -223,14 +238,13 @@ def _fail(msg: str, state: GraphState, *, internals_note: Optional[Dict[str, Any
         "doc_gcs_uri": doc_gcs_uri,
         "generated_at": _now_iso(),
     }
-    naa_internals = {"error": msg}
     if internals_note:
         naa_internals.update(internals_note)
 
     print(f"[NAA] FAIL: {msg}")
     return {
         "artifacts": {"naa": naa_art},
-        "internals": {"naa": naa_internals},
+        "internals": {"naa": {**naa_internals}},
         "runtime": {"naa": {"status": "FAILED", "route": []}},
         "message": msg,
     }
@@ -475,6 +489,8 @@ def _dedup_resolved(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 # Main NAA node
 # ---------------------------------------------------------------------
 def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    naa_int = state.setdefault("internals", {}).setdefault("naa", {})
+    _push_status(naa_int, "initializing naa")
     print("[NAA] start")
 
     # Upstream check — FINISHED means summary and required attributes exist
@@ -506,7 +522,7 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
     step7_override: Optional[Dict[str, str]] = cfg.get("naa_step7_override_pdf") if isinstance(cfg.get("naa_step7_override_pdf"), dict) else None
 
     print(f"[NAA] client={type(client)} model={model_name} mailto={polite_email} step7_remote={step7_remote}")
-
+    _push_status(naa_int, "extracting full reference list")
     # ------------------ Step 1: extract full reference list ------------------
     print("[NAA] [step 1] extract full reference list — start")
     schema_refs = {"type": "array", "items": {"type": "string"}}
@@ -535,7 +551,8 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
 
     if not references_all:
         return _fail("[NAA] step 1 produced empty reference list", state, internals_note={"stage": "step1"})
-
+    
+    _push_status(naa_int, "resolving DOIs via Crossref")
     # ------------------ Step 2: resolve all DOIs via Crossref ------------------
     print(f"[NAA] [step 2] resolve DOIs via Crossref — start (n={len(references_all)})")
     try:
@@ -559,6 +576,7 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
         preview.append(_truncate(f"title={t} | doi={d}", 80))
     print(json.dumps(preview, indent=4))
 
+    _push_status(naa_int, "evaluating matches with LLM: baseline top 2")
     # ------------------ Step 3: LLM ranking (baseline_top2) ------------------
     print("[NAA] [step 3] LLM ranking — baseline_top2")
     schema_baseline = {"type": "object","properties":{"baseline_top2":{"type":"array","items":{"type":"string"}}},"required":["baseline_top2"]}
@@ -589,7 +607,8 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
         print(json.dumps([str(x) for x in baseline_top2], indent=4))
     if len(baseline_top2) != 2:
         return _fail("[NAA] step 3 did not return exactly two baseline items", state, internals_note={"stage": "step3", "rank": baseline_obj})
-
+    
+    _push_status(naa_int, "evaluating matches with LLM: innovation top 2")
     # ------------------ Step 4: LLM ranking (innovation_top2) ------------------
     print("[NAA] [step 4] LLM ranking — innovation_top2 (with exclusions and no year filter)")
     schema_innov = {
@@ -652,6 +671,7 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
     if len(innovation_top2) != 2:
         return _fail("[NAA] step 4 did not return exactly two innovation items", state, internals_note={"stage": "step4", "rank": innovation_obj})
 
+    _push_status(naa_int, "resolving works with OpenAlex")
     # ------------------ Step 5: OpenAlex resolve (works) ------------------
     print("[NAA] [step 5] OpenAlex resolve — start")
     selected_refs = baseline_top2 + innovation_top2
@@ -697,6 +717,7 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
     print(f"[NAA] [step 5] deduplicated: {before} -> {after} (key order: openalex_id|doi|title+year)")
     resolved_results = deduped
 
+    _push_status(naa_int, "step 6: fetching cited-by for selected works")
     # ------------------ Step 6: OpenAlex cited-by via cites-filter ------------------
     print("[NAA] [step 6] OpenAlex cited-by — start (cites:W...) per docs)")
     for idx, item in enumerate(resolved_results, start=1):
@@ -721,6 +742,7 @@ def naa_node(state: GraphState, config: Optional[Dict[str, Any]] = None) -> Dict
             print(f"[NAA] [step 6] cited-by error for {idx}/{len(resolved_results)} (oaid={slug or 'NA'}): {e}")
             item["cited_by"] = []
 
+    _push_status(naa_int, "Comparing PDFs")
     # ------------------ Step 7: Pairwise PDF comparison ------------------
     print(f"[NAA] [step 7] mode={'REMOTE' if step7_remote else 'GCS'} — pairwise PDF compare")
 
