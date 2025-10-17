@@ -31,7 +31,7 @@
         <div class="row">
           <button id="btn-upload" type="button">Upload</button>
         </div>
-        <div id="upload-result" class="panel json"></div>
+        <pre id="upload-result" class="panel prejson"></pre>
       </section>
 
       <!-- ========== Invoke ========== -->
@@ -42,7 +42,7 @@
           <input id="gcs-uri" type="text" placeholder="gs://bucket/path/file.pdf" />
         </div>
         <button id="btn-invoke" type="button">Start Graph</button>
-        <div id="invoke-result" class="panel json"></div>
+        <pre id="invoke-result" class="panel prejson"></pre>
       </section>
 
       <!-- ========== Poll /debug_state ========== -->
@@ -64,75 +64,89 @@
           <div class="muted">Debug state is the primary view now.</div>
         </div>
 
-        <!-- === Dashboard cards === -->
+        <!-- === Dashboard cards (only state + state_str by default) === -->
         <div class="grid">
+          <!-- Overview -->
           <div class="card" id="card-overview">
             <div class="card-hd">
               <h3>Overview</h3>
-              <span id="badge-run" class="badge">—</span>
+              <div class="hd-actions">
+                <span id="badge-run" class="badge">—</span>
+                <button id="toggle-overview" class="btn-sm">Details</button>
+              </div>
             </div>
-            <div class="kv"><span class="k">request_id:</span> <span id="ov-req">—</span></div>
-            <div class="kv"><span class="k">doc_gcs_uri:</span> <span id="ov-doc">—</span></div>
-            <div class="kv"><span class="k">created_at:</span> <span id="ov-created">—</span></div>
-            <div class="kv"><span class="k">updated_at:</span> <span id="ov-updated">—</span></div>
-            <div class="kv"><span class="k">state_str:</span> <span id="ov-state-str" class="muted">—</span></div>
-            <div class="route" id="route-hint">Routing: —</div>
+            <div class="kv"><span class="k">state:</span> <span id="ov-state" class="wrap">—</span></div>
+            <div class="kv"><span class="k">state_str:</span> <span id="ov-state-str" class="wrap muted">—</span></div>
+            <div id="detail-overview" class="panel prejson slim hide"></div>
           </div>
 
+          <!-- IA -->
           <div class="card" id="card-ia">
             <div class="card-hd">
               <h3>IA — Ingestion</h3>
-              <span id="badge-ia" class="badge">—</span>
+              <div class="hd-actions">
+                <span id="badge-ia" class="badge">—</span>
+                <button id="toggle-ia" class="btn-sm">Details</button>
+              </div>
             </div>
-            <div class="kv"><span class="k">is_pdf:</span> <span id="ia-is-pdf">—</span></div>
-            <div class="kv"><span class="k">size:</span> <span id="ia-size">—</span></div>
-            <div class="kv"><span class="k">content_type:</span> <span id="ia-ct">—</span></div>
-            <div class="kv"><span class="k">doc_local_uri:</span> <span id="ia-local" class="mono">—</span></div>
+            <div class="kv"><span class="k">state:</span> <span id="ia-state" class="wrap">—</span></div>
+            <div class="kv"><span class="k">state_str:</span> <span id="ia-state-str" class="wrap muted">—</span></div>
+            <div id="detail-ia" class="panel prejson slim hide"></div>
           </div>
 
+          <!-- IDCA -->
           <div class="card" id="card-idca">
             <div class="card-hd">
               <h3>IDCA — Invention Detection & Classification</h3>
-              <span id="badge-idca" class="badge">—</span>
+              <div class="hd-actions">
+                <span id="badge-idca" class="badge">—</span>
+                <button id="toggle-idca" class="btn-sm">Details</button>
+              </div>
             </div>
-            <div class="kv"><span class="k">status:</span> <span id="idca-status">—</span></div>
-            <div class="kv"><span class="k">title:</span> <span id="idca-title" class="mono">—</span></div>
-            <div class="kv"><span class="k">authors:</span> <span id="idca-authors">—</span></div>
-            <div class="kv"><span class="k">summary:</span></div>
-            <div id="idca-summary" class="summary"></div>
+            <div class="kv"><span class="k">state:</span> <span id="idca-state" class="wrap">—</span></div>
+            <div class="kv"><span class="k">state_str:</span> <span id="idca-state-str" class="wrap muted">—</span></div>
+            <div id="detail-idca" class="panel prejson slim hide"></div>
           </div>
 
+          <!-- NAA -->
           <div class="card" id="card-naa">
             <div class="card-hd">
               <h3>NAA — Novelty Assessment</h3>
-              <span id="badge-naa" class="badge">—</span>
+              <div class="hd-actions">
+                <span id="badge-naa" class="badge">—</span>
+                <button id="toggle-naa" class="btn-sm">Details</button>
+              </div>
             </div>
-            <div class="kv"><span class="k">scores:</span> <span id="naa-scores">—</span></div>
-            <div class="kv"><span class="k">highlights:</span> <span id="naa-hl">—</span></div>
-            <div class="kv"><span class="k">risks:</span> <span id="naa-risks">—</span></div>
+            <div class="kv"><span class="k">state:</span> <span id="naa-state" class="wrap">—</span></div>
+            <div class="kv"><span class="k">state_str:</span> <span id="naa-state-str" class="wrap muted">—</span></div>
+            <div id="detail-naa" class="panel prejson slim hide"></div>
           </div>
 
+          <!-- AA -->
           <div class="card" id="card-aa">
             <div class="card-hd">
               <h3>AA — Aggregation</h3>
-              <span id="badge-aa" class="badge">—</span>
+              <div class="hd-actions">
+                <span id="badge-aa" class="badge">—</span>
+                <button id="toggle-aa" class="btn-sm">Details</button>
+              </div>
             </div>
-            <div class="kv"><span class="k">verdict:</span> <span id="aa-verdict">—</span></div>
-            <div class="kv"><span class="k">mode:</span> <span id="aa-mode">—</span></div>
-            <div class="kv"><span class="k">merge_policy:</span> <span id="aa-merge">—</span></div>
+            <div class="kv"><span class="k">state:</span> <span id="aa-state" class="wrap">—</span></div>
+            <div class="kv"><span class="k">state_str:</span> <span id="aa-state-str" class="wrap muted">—</span></div>
+            <div id="detail-aa" class="panel prejson slim hide"></div>
           </div>
         </div>
 
         <!-- raw JSON viewer -->
         <h3 style="margin-top:1rem">Raw <code>/debug_state</code></h3>
-        <div id="state-result" class="panel json"></div>
+        <pre id="state-result" class="panel prejson"></pre>
       </section>
 
       <!-- ========== CPC ========== -->
       <section id="cpc-section">
         <h2>Debug CPC</h2>
         <button id="btn-cpc" type="button">GET /debug/cpc</button>
-        <div id="cpc-result" class="panel json"></div>
+        <pre id="cpc-result" class="panel prejson"></pre>
       </section>
     </div>
 

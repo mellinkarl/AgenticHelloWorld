@@ -9,8 +9,6 @@ const API_BASE = USE_PROXY ? '' : DIRECT_API;
 
 // ===== Helpers =====
 const $ = (sel: string) => document.querySelector(sel)! as HTMLElement;
-const $$ = (sel: string) => Array.from(document.querySelectorAll(sel)) as HTMLElement[];
-
 function text(el: HTMLElement, v: any) { el.textContent = v == null ? '—' : String(v); }
 function setBadge(el: HTMLElement, label: string, cls?: string) {
   el.className = `badge ${cls || ''}`.trim();
@@ -20,45 +18,8 @@ function pick<T=any>(obj: any, path: string, fallback?: T): T | undefined {
   try { return path.split('.').reduce((o,k)=> (o==null?undefined:o[k]), obj) ?? fallback; }
   catch { return fallback; }
 }
-
-// ===== Pretty JSON viewer =====
-function renderJSON(el: HTMLElement, data: any, isRoot = true) {
-  el.innerHTML = '';
-  el.appendChild(buildNode(data, isRoot));
-}
-function buildNode(value: any, isRoot = false): HTMLElement {
-  if (value === null) { const s = document.createElement('span'); s.className='v-null'; s.textContent='null'; return s; }
-  const t = typeof value;
-  if (t === 'string') { const s=document.createElement('span'); s.className='v-str'; s.textContent=JSON.stringify(value); return s; }
-  if (t === 'number') { const s=document.createElement('span'); s.className='v-num'; s.textContent=String(value); return s; }
-  if (t === 'boolean') { const s=document.createElement('span'); s.className='v-bool'; s.textContent=String(value); return s; }
-  if (Array.isArray(value)) {
-    const root=document.createElement('div'); if (isRoot) root.className='root';
-    const details=document.createElement('details'); details.open=isRoot;
-    const summary=document.createElement('summary'); summary.textContent=`Array[${value.length}]`;
-    details.appendChild(summary);
-    value.forEach((item, idx)=>{
-      const row=document.createElement('div'); row.className='kv';
-      const k=document.createElement('span'); k.className='k'; k.textContent=`[${idx}] `;
-      const v=buildNode(item);
-      row.appendChild(k); row.appendChild(v);
-      details.appendChild(row);
-    });
-    root.appendChild(details); return root;
-  }
-  const keys=Object.keys(value||{});
-  const root=document.createElement('div'); if (isRoot) root.className='root';
-  const details=document.createElement('details'); details.open=isRoot;
-  const summary=document.createElement('summary'); summary.textContent=`Object{${keys.length}}`;
-  details.appendChild(summary);
-  keys.forEach((key)=>{
-    const row=document.createElement('div'); row.className='kv';
-    const k=document.createElement('span'); k.className='k'; k.textContent=`${key}: `;
-    const v=buildNode(value[key]);
-    row.appendChild(k); row.appendChild(v);
-    details.appendChild(row);
-  });
-  root.appendChild(details); return root;
+function renderPreJSON(el: HTMLElement, data: any) {
+  (el as HTMLPreElement).textContent = JSON.stringify(data, null, 2);
 }
 
 // ===== Persistent recent doc_gcs_uri (7-day TTL) =====
@@ -79,22 +40,16 @@ function loadRecent(): RecentDoc[] {
     return pruned.sort((a,b)=> (b.t - a.t)).slice(0, MAX_RECENT);
   } catch { return []; }
 }
-
 function saveRecent(entry: RecentDoc) {
   const now = Date.now();
   const list = loadRecent();
-  // de-duplicate by uri
   const filtered = list.filter(x => x.uri !== entry.uri);
   filtered.unshift({ ...entry, t: now });
-  const finalList = filtered.slice(0, MAX_RECENT);
-  localStorage.setItem(LS_KEY, JSON.stringify(finalList));
+  localStorage.setItem(LS_KEY, JSON.stringify(filtered.slice(0, MAX_RECENT)));
 }
-
 function restoreLatestToInput(input: HTMLInputElement) {
   const list = loadRecent();
-  if (list.length && !input.value.trim()) {
-    input.value = list[0].uri;
-  }
+  if (list.length && !input.value.trim()) input.value = list[0].uri;
 }
 
 // ===== Upload controls =====
@@ -104,7 +59,7 @@ const fileName = $('#file-name') as HTMLSpanElement;
 const withSignedUrl = $('#with-signed-url') as HTMLInputElement;
 
 const uploadBtn = $('#btn-upload') as HTMLButtonElement;
-const uploadOut = $('#upload-result') as HTMLDivElement;
+const uploadOut = $('#upload-result') as HTMLPreElement;
 
 chooseBtn.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', () => {
@@ -114,25 +69,19 @@ fileInput.addEventListener('change', () => {
 
 async function uploadFile() {
   const file = fileInput.files?.[0];
-  if (!file) { uploadOut.innerHTML = '<span class="muted">Please choose a file.</span>'; return; }
+  if (!file) { uploadOut.textContent = 'Please choose a file.'; return; }
   const form = new FormData(); form.append('file', file);
   const url = new URL((API_BASE || '') + '/upload-file', window.location.origin);
   if (withSignedUrl.checked) url.searchParams.set('return_signed_url', 'true');
-  uploadOut.innerHTML = '<span class="muted">Uploading...</span>';
+  uploadOut.textContent = 'Uploading...';
   const res = await fetch(url.toString(), { method: 'POST', body: form });
   const data = await res.json();
-  renderJSON(uploadOut, data, true);
+  renderPreJSON(uploadOut, data);
 
   const docGcs = (data as any)?.doc_gcs_uri as string | undefined;
   if (docGcs && docGcs.startsWith('gs://')) {
     gcsInput.value = docGcs;
-    // persist with metadata if available
-    saveRecent({
-      uri: docGcs,
-      t: Date.now(),
-      ct: (data as any)?.content_type,
-      size: Number((data as any)?.size) || undefined,
-    });
+    saveRecent({ uri: docGcs, t: Date.now(), ct: (data as any)?.content_type, size: Number((data as any)?.size) || undefined });
   }
 }
 uploadBtn.addEventListener('click', uploadFile);
@@ -140,12 +89,9 @@ uploadBtn.addEventListener('click', uploadFile);
 // ===== Invoke controls =====
 const gcsInput = $('#gcs-uri') as HTMLInputElement;
 const invokeBtn = $('#btn-invoke') as HTMLButtonElement;
-const invokeOut = $('#invoke-result') as HTMLDivElement;
+const invokeOut = $('#invoke-result') as HTMLPreElement;
 
-// restore latest doc_gcs_uri on load
 restoreLatestToInput(gcsInput);
-
-// whenever user edits the field, also persist it (so“粘贴一个旧的 GCS”也会被记忆)
 gcsInput.addEventListener('change', () => {
   const uri = gcsInput.value.trim();
   if (uri && uri.startsWith('gs://')) saveRecent({ uri, t: Date.now() });
@@ -157,25 +103,72 @@ gcsInput.addEventListener('blur', () => {
 
 async function invoke() {
   const gcs = gcsInput.value.trim();
-  if (!gcs) { invokeOut.innerHTML = '<span class="muted">Missing doc_gcs_uri</span>'; return; }
-  invokeOut.innerHTML = '<span class="muted">Invoking...</span>';
+  if (!gcs) { invokeOut.textContent = 'Missing doc_gcs_uri'; return; }
+  invokeOut.textContent = 'Invoking...';
   const res = await fetch((API_BASE || '') + '/invoke', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ gcs_url: gcs })
   });
   const data = await res.json();
-  renderJSON(invokeOut, data, true);
+  renderPreJSON(invokeOut, data);
   if ((data as any).request_id) requestIdInput.value = (data as any).request_id;
 }
 invokeBtn.addEventListener('click', invoke);
 
-// ===== Poll /debug_state dashboard =====
+// ===== Poll /debug_state with minimal fields + per-agent details =====
 const requestIdInput = $('#request-id') as HTMLInputElement;
 const pollStartBtn = $('#btn-start-poll') as HTMLButtonElement;
 const pollStopBtn = $('#btn-stop-poll') as HTMLButtonElement;
 const pollIntervalInput = $('#poll-interval') as HTMLInputElement;
-const stateOut = $('#state-result') as HTMLDivElement;
+const stateOut = $('#state-result') as HTMLPreElement;
+
+// overview minimal spans
+const ovState = $('#ov-state');
+const ovStateStr = $('#ov-state-str');
+
+// agent minimal spans
+const iaState = $('#ia-state');
+const iaStateStr = $('#ia-state-str');
+const idcaState = $('#idca-state');
+const idcaStateStr = $('#idca-state-str');
+const naaState = $('#naa-state');
+const naaStateStr = $('#naa-state-str');
+const aaState = $('#aa-state');
+const aaStateStr = $('#aa-state-str');
+
+// badges
+const badgeRun = $('#badge-run');
+const badgeIA = $('#badge-ia');
+const badgeIDCA = $('#badge-idca');
+const badgeNAA = $('#badge-naa');
+const badgeAA = $('#badge-aa');
+
+// detail toggles + panels
+const toggleOverview = $('#toggle-overview') as HTMLButtonElement;
+const toggleIA = $('#toggle-ia') as HTMLButtonElement;
+const toggleIDCA = $('#toggle-idca') as HTMLButtonElement;
+const toggleNAA = $('#toggle-naa') as HTMLButtonElement;
+const toggleAA = $('#toggle-aa') as HTMLButtonElement;
+const detailOverview = $('#detail-overview') as HTMLPreElement;
+const detailIA = $('#detail-ia') as HTMLPreElement;
+const detailIDCA = $('#detail-idca') as HTMLPreElement;
+const detailNAA = $('#detail-naa') as HTMLPreElement;
+const detailAA = $('#detail-aa') as HTMLPreElement;
+
+let showOverview = false, showIA = false, showIDCA = false, showNAA = false, showAA = false;
+function bindToggle(btn: HTMLButtonElement, get: ()=>boolean, set:(v:boolean)=>void, panel: HTMLElement) {
+  btn.addEventListener('click', ()=>{
+    const nv = !get(); set(nv);
+    panel.classList.toggle('hide', !nv);
+    btn.textContent = nv ? 'Hide' : 'Details';
+  });
+}
+bindToggle(toggleOverview, ()=>showOverview, (v)=>showOverview=v, detailOverview);
+bindToggle(toggleIA, ()=>showIA, (v)=>showIA=v, detailIA);
+bindToggle(toggleIDCA, ()=>showIDCA, (v)=>showIDCA=v, detailIDCA);
+bindToggle(toggleNAA, ()=>showNAA, (v)=>showNAA=v, detailNAA);
+bindToggle(toggleAA, ()=>showAA, (v)=>showAA=v, detailAA);
 
 let pollTimer: number | null = null;
 
@@ -187,74 +180,75 @@ async function fetchDebugStateOnce(id: string) {
 
 function renderDashboard(s: any) {
   // Raw JSON
-  renderJSON(stateOut, s, true);
+  renderPreJSON(stateOut, s);
 
-  // Overview
+  // Overview minimal
   const run = String(s?.status || '').toUpperCase() || '—';
-  const badgeRun = $('#badge-run'); setBadge(badgeRun, run, `badge-${run}`);
-  text($('#ov-req'), s?.request_id);
-  text($('#ov-doc'), s?.doc_gcs_uri);
-  text($('#ov-created'), s?.created_at);
-  text($('#ov-updated'), s?.updated_at);
-  text($('#ov-state-str'), s?.state_str ?? '—');
+  setBadge(badgeRun, run, `badge-${run}`);
+  text(ovState, run);
+  text(ovStateStr, s?.state_str ?? '—');
 
-  // runtime statuses
-  const stIA = String(pick(s,'runtime.ia.status','—')).toUpperCase();
-  const stID = String(pick(s,'runtime.idca.status','—')).toUpperCase();
-  const stNA = String(pick(s,'runtime.naa.status','—')).toUpperCase();
-  const stAA = String(pick(s,'runtime.aa.status','—')).toUpperCase();
+  // IA minimal
+  const stIA = String(pick(s, 'runtime.ia.status', '—')).toUpperCase();
+  setBadge(badgeIA, stIA, `badge-${stIA}`);
+  text(iaState, stIA);
+  text(iaStateStr, pick(s, 'internals.ia.state_str', '—'));
 
-  setBadge($('#badge-ia'), stIA, stIA==='FINISHED' ? 'badge-FINISHED' : stIA==='RUNNING' ? 'badge-RUNNING' : stIA==='FAILED' ? 'badge-FAILED' : 'badge-PENDING');
-  setBadge($('#badge-idca'), stID, stID==='FINISHED' ? 'badge-FINISHED' : stID==='RUNNING' ? 'badge-RUNNING' : stID==='FAILED' ? 'badge-FAILED' : 'badge-PENDING');
-  setBadge($('#badge-naa'), stNA, stNA==='FINISHED' ? 'badge-FINISHED' : stNA==='RUNNING' ? 'badge-RUNNING' : stNA==='FAILED' ? 'badge-FAILED' : 'badge-PENDING');
-  setBadge($('#badge-aa'), stAA, stAA==='FINISHED' ? 'badge-FINISHED' : stAA==='RUNNING' ? 'badge-RUNNING' : stAA==='FAILED' ? 'badge-FAILED' : 'badge-PENDING');
+  // IDCA minimal
+  const stID = String(pick(s, 'runtime.idca.status', '—')).toUpperCase();
+  setBadge(badgeIDCA, stID, `badge-${stID}`);
+  text(idcaState, stID);
+  text(idcaStateStr, pick(s, 'internals.idca.state_str', '—'));
 
-  // IA artifacts
-  const ia = pick<any>(s,'artifacts.ia',{}) || pick<any>(s,'report.ia',{}) || {};
-  text($('#ia-is-pdf'), ia?.is_pdf);
-  text($('#ia-size'), ia?.size);
-  text($('#ia-ct'), ia?.content_type);
-  text($('#ia-local'), ia?.doc_local_uri);
+  // NAA minimal
+  const stNA = String(pick(s, 'runtime.naa.status', '—')).toUpperCase();
+  setBadge(badgeNAA, stNA, `badge-${stNA}`);
+  text(naaState, stNA);
+  text(naaStateStr, pick(s, 'internals.naa.state_str', '—'));
 
-  // IDCA
-  const idca = pick<any>(s,'artifacts.idca',{}) || pick<any>(s,'report.idca',{}) || {};
-  const invStatus = (idca?.status || '—').toString().toLowerCase();
-  text($('#idca-status'), idca?.status ?? '—');
-  const idcaStatusEl = $('#idca-status');
-  idcaStatusEl.classList.remove('idca-present','idca-implied','idca-absent');
-  if (invStatus === 'present') idcaStatusEl.classList.add('idca-present');
-  if (invStatus === 'implied' || invStatus === 'absent') idcaStatusEl.classList.add(`idca-${invStatus}`);
-  text($('#idca-title'), idca?.title ?? '—');
-  text($('#idca-authors'), (idca?.authors || []).join(', ') || '—');
-  ($('#idca-summary') as HTMLElement).textContent = idca?.summary || '—';
+  // AA minimal
+  const stAA = String(pick(s, 'runtime.aa.status', '—')).toUpperCase();
+  setBadge(badgeAA, stAA, `badge-${stAA}`);
+  text(aaState, stAA);
+  text(aaStateStr, pick(s, 'internals.aa.state_str', '—'));
 
-  // Routing hint based on IDCA status
-  let routeText = '—';
-  if (invStatus === 'present') routeText = 'IA → IDCA(status=present) → NAA → AA';
-  else if (invStatus === 'implied' || invStatus === 'absent') routeText = `IA → IDCA(status=${invStatus}) → AA (skip NAA)`;
-  else routeText = 'IA → IDCA → (waiting)';
-  $('#route-hint').innerHTML = `Routing: <span class="arrow">${routeText}</span>`;
-
-  // NAA
-  const naa = pick<any>(s,'artifacts.naa',{}) || pick<any>(s,'report.naa',{}) || {};
-  const scores = naa?.scores || {};
-  const fmtScore = (v:any)=> (v==null?'—':String(v));
-  text($('#naa-scores'), `novelty=${fmtScore(scores.novelty)}, significance=${fmtScore(scores.significance)}, rigor=${fmtScore(scores.rigor)}, clarity=${fmtScore(scores.clarity)}`);
-  text($('#naa-hl'), (naa?.highlights||[]).slice(0,3).join(' • ') || '—');
-  text($('#naa-risks'), (naa?.risks||[]).slice(0,3).join(' • ') || '—');
-
-  // AA
-  const verdict = pick<string>(s,'artifacts.report.verdict') || pick<string>(s,'report.verdict') || '—';
-  text($('#aa-verdict'), verdict);
-  const aa = pick<any>(s,'internals.aa',{}) || {};
-  text($('#aa-mode'), aa?.mode ?? '—');
-  text($('#aa-merge'), aa?.merge_policy ?? '—');
+  // Details content (only when opened):
+  if (showOverview) {
+    renderPreJSON(detailOverview, {
+      artifacts: s?.artifacts ?? {},
+      internals: s?.internals ?? {}
+    });
+  }
+  if (showIA) {
+    renderPreJSON(detailIA, {
+      artifacts: { ia: pick(s,'artifacts.ia',{}) },
+      internals: pick(s,'internals.ia',{})
+    });
+  }
+  if (showIDCA) {
+    renderPreJSON(detailIDCA, {
+      artifacts: { idca: pick(s,'artifacts.idca',{}), report: pick(s,'report.idca',{}) },
+      internals: pick(s,'internals.idca',{})
+    });
+  }
+  if (showNAA) {
+    renderPreJSON(detailNAA, {
+      artifacts: { naa: pick(s,'artifacts.naa',{}), report: pick(s,'report.naa',{}) },
+      internals: pick(s,'internals.naa',{})
+    });
+  }
+  if (showAA) {
+    renderPreJSON(detailAA, {
+      artifacts: { report: pick(s,'artifacts.report',{}) ?? {} },
+      internals: pick(s,'internals.aa',{})
+    });
+  }
 }
 
 async function startPolling() {
-  const id = requestIdInput.value.trim();
-  if (!id) { stateOut.innerHTML = '<span class="muted">Missing request_id</span>'; return; }
-  const interval = Math.max(500, Number(pollIntervalInput.value) || 1500);
+  const id = (document.querySelector('#request-id') as HTMLInputElement).value.trim();
+  if (!id) { stateOut.textContent = 'Missing request_id'; return; }
+  const interval = Math.max(500, Number((document.querySelector('#poll-interval') as HTMLInputElement).value) || 1500);
   const tick = async () => {
     try {
       const data = await fetchDebugStateOnce(id);
@@ -262,7 +256,7 @@ async function startPolling() {
       const status = String(data?.status || '').toUpperCase();
       if (status === 'FINISHED' || status === 'FAILED') stopPolling();
     } catch (e: any) {
-      stateOut.innerHTML = `<span class="muted">Error: ${e?.message||e}</span>`;
+      stateOut.textContent = `Error: ${e?.message||e}`;
       stopPolling();
     }
   };
@@ -275,11 +269,11 @@ $('#btn-stop-poll').addEventListener('click', stopPolling);
 
 // ===== CPC debug =====
 const cpcBtn = $('#btn-cpc') as HTMLButtonElement;
-const cpcOut = $('#cpc-result') as HTMLDivElement;
+const cpcOut = $('#cpc-result') as HTMLPreElement;
 async function getCpc() {
-  cpcOut.innerHTML = '<span class="muted">Fetching /debug/cpc ...</span>';
+  cpcOut.textContent = 'Fetching /debug/cpc ...';
   const res = await fetch((API_BASE || '') + '/debug/cpc');
   const data = await res.json();
-  renderJSON(cpcOut, data, true);
+  renderPreJSON(cpcOut, data);
 }
 cpcBtn.addEventListener('click', getCpc);
