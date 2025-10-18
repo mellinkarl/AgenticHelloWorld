@@ -16,7 +16,7 @@
         </p>
       </header>
 
-      <!-- ========== Upload ========== -->
+      <!-- Upload -->
       <section id="upload-section">
         <h2>1) Upload file</h2>
         <div class="file-row">
@@ -34,7 +34,7 @@
         <pre id="upload-result" class="panel prejson"></pre>
       </section>
 
-      <!-- ========== Invoke ========== -->
+      <!-- Invoke -->
       <section id="invoke-section">
         <h2>2) Invoke</h2>
         <div class="row">
@@ -45,7 +45,7 @@
         <pre id="invoke-result" class="panel prejson"></pre>
       </section>
 
-      <!-- ========== Poll /debug_state ========== -->
+      <!-- Poll -->
       <section id="poll-section">
         <h2>3) Poll <code>/debug_state</code></h2>
         <div class="row">
@@ -64,85 +64,168 @@
           <div class="muted">Debug state is the primary view now.</div>
         </div>
 
-        <!-- === Dashboard cards (only state + state_str by default) === -->
-        <div class="grid">
+        <!-- Dashboard -->
+        <div id="grid" class="grid">
           <!-- Overview -->
-          <div class="card" id="card-overview">
+          <div class="card" id="card-overview" data-agent="overview">
             <div class="card-hd">
               <h3>Overview</h3>
               <div class="hd-actions">
                 <span id="badge-run" class="badge">—</span>
-                <button id="toggle-overview" class="btn-sm">Details</button>
+                <button id="focus-overview" class="btn-sm">Details</button>
               </div>
             </div>
-            <div class="kv"><span class="k">state:</span> <span id="ov-state" class="wrap">—</span></div>
+            <div class="kv"><span class="k">state:</span> <span id="ov-state" class="state-val nowrap">—</span></div>
             <div class="kv"><span class="k">state_str:</span> <span id="ov-state-str" class="wrap muted">—</span></div>
-            <div id="detail-overview" class="panel prejson slim hide"></div>
+
+            <!-- focus details layout -->
+            <div class="details-row hide" id="details-overview">
+              <div class="detail-block">
+                <h4>Artifacts</h4>
+                <pre id="overview-artifacts" class="panel prejson"></pre>
+              </div>
+              <div class="detail-block">
+                <h4>Internals</h4>
+                <pre id="overview-internals" class="panel prejson"></pre>
+              </div>
+              <div class="detail-actions">
+                <button id="exit-focus" class="btn-sm danger">Exit Focus</button>
+              </div>
+            </div>
           </div>
 
           <!-- IA -->
-          <div class="card" id="card-ia">
+          <div class="card" id="card-ia" data-agent="ia">
             <div class="card-hd">
               <h3>IA — Ingestion</h3>
               <div class="hd-actions">
                 <span id="badge-ia" class="badge">—</span>
-                <button id="toggle-ia" class="btn-sm">Details</button>
+                <button id="focus-ia" class="btn-sm">Details</button>
               </div>
             </div>
-            <div class="kv"><span class="k">state:</span> <span id="ia-state" class="wrap">—</span></div>
-            <div class="kv"><span class="k">state_str:</span> <span id="ia-state-str" class="wrap muted">—</span></div>
-            <div id="detail-ia" class="panel prejson slim hide"></div>
+            <div class="kv"><span class="k">state:</span> <span id="ia-state" class="state-val nowrap">—</span></div>
+            <div class="kv"><span class="k">status_str:</span> <span id="ia-state-str" class="wrap muted">—</span></div>
+
+            <div class="details-row hide" id="details-ia">
+              <div class="detail-block">
+                <h4>Artifacts (IA)</h4>
+                <pre id="ia-artifacts" class="panel prejson"></pre>
+              </div>
+              <div class="detail-block">
+                <h4>Internals (IA)</h4>
+                <pre id="ia-internals" class="panel prejson"></pre>
+              </div>
+              <div class="detail-actions">
+                <button class="btn-sm danger exit-focus">Exit Focus</button>
+              </div>
+            </div>
           </div>
 
           <!-- IDCA -->
-          <div class="card" id="card-idca">
+          <div class="card" id="card-idca" data-agent="idca">
             <div class="card-hd">
               <h3>IDCA — Invention Detection & Classification</h3>
               <div class="hd-actions">
                 <span id="badge-idca" class="badge">—</span>
-                <button id="toggle-idca" class="btn-sm">Details</button>
+                <button id="focus-idca" class="btn-sm">Details</button>
               </div>
             </div>
-            <div class="kv"><span class="k">state:</span> <span id="idca-state" class="wrap">—</span></div>
-            <div class="kv"><span class="k">state_str:</span> <span id="idca-state-str" class="wrap muted">—</span></div>
-            <div id="detail-idca" class="panel prejson slim hide"></div>
+            <div class="kv"><span class="k">state:</span> <span id="idca-state" class="state-val nowrap">—</span></div>
+            <div class="kv"><span class="k">status_str:</span> <span id="idca-state-str" class="wrap muted">—</span></div>
+
+            <div class="details-row hide" id="details-idca">
+              <div class="detail-block">
+                <h4>Artifacts (IDCA)</h4>
+                <pre id="idca-artifacts" class="panel prejson"></pre>
+              </div>
+              <div class="detail-block">
+                <h4>Internals (IDCA)</h4>
+                <pre id="idca-internals" class="panel prejson"></pre>
+              </div>
+              <div class="detail-actions">
+                <button class="btn-sm danger exit-focus">Exit Focus</button>
+              </div>
+            </div>
           </div>
 
           <!-- NAA -->
-          <div class="card" id="card-naa">
+          <div class="card" id="card-naa" data-agent="naa">
             <div class="card-hd">
               <h3>NAA — Novelty Assessment</h3>
               <div class="hd-actions">
                 <span id="badge-naa" class="badge">—</span>
-                <button id="toggle-naa" class="btn-sm">Details</button>
+                <button id="focus-naa" class="btn-sm">Details</button>
               </div>
             </div>
-            <div class="kv"><span class="k">state:</span> <span id="naa-state" class="wrap">—</span></div>
-            <div class="kv"><span class="k">state_str:</span> <span id="naa-state-str" class="wrap muted">—</span></div>
-            <div id="detail-naa" class="panel prejson slim hide"></div>
+            <div class="kv"><span class="k">state:</span> <span id="naa-state" class="state-val nowrap">—</span></div>
+            <div class="kv"><span class="k">status_str:</span> <span id="naa-state-str" class="wrap muted">—</span></div>
+
+            <div class="details-row hide" id="details-naa">
+              <div class="detail-block">
+                <h4>Artifacts (NAA)</h4>
+                <pre id="naa-artifacts" class="panel prejson"></pre>
+              </div>
+              <div class="detail-block">
+                <h4>Internals (NAA)</h4>
+                <pre id="naa-internals" class="panel prejson"></pre>
+              </div>
+              <div class="detail-actions">
+                <button class="btn-sm danger exit-focus">Exit Focus</button>
+              </div>
+            </div>
           </div>
 
           <!-- AA -->
-          <div class="card" id="card-aa">
+          <div class="card" id="card-aa" data-agent="aa">
             <div class="card-hd">
               <h3>AA — Aggregation</h3>
               <div class="hd-actions">
                 <span id="badge-aa" class="badge">—</span>
-                <button id="toggle-aa" class="btn-sm">Details</button>
+                <button id="focus-aa" class="btn-sm">Details</button>
               </div>
             </div>
-            <div class="kv"><span class="k">state:</span> <span id="aa-state" class="wrap">—</span></div>
-            <div class="kv"><span class="k">state_str:</span> <span id="aa-state-str" class="wrap muted">—</span></div>
-            <div id="detail-aa" class="panel prejson slim hide"></div>
+            <div class="kv"><span class="k">state:</span> <span id="aa-state" class="state-val nowrap">—</span></div>
+            <div class="kv"><span class="k">status_str:</span> <span id="aa-state-str" class="wrap muted">—</span></div>
+
+            <div class="details-row hide" id="details-aa">
+              <div class="detail-block">
+                <h4>Artifacts (Report)</h4>
+                <pre id="aa-artifacts" class="panel prejson"></pre>
+              </div>
+              <div class="detail-block">
+                <h4>Internals (AA)</h4>
+                <pre id="aa-internals" class="panel prejson"></pre>
+              </div>
+              <div class="detail-actions">
+                <button class="btn-sm danger exit-focus">Exit Focus</button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- raw JSON viewer -->
+        <!-- Final Report -->
+        <div id="final-card" class="card final hide">
+          <div class="card-hd">
+            <h3>Final Report</h3>
+            <div class="hd-actions">
+              <span id="badge-final" class="badge">—</span>
+              <button id="toggle-final" class="btn-sm">Details</button>
+            </div>
+          </div>
+          <div class="kv"><span class="k">verdict:</span> <span id="fr-verdict" class="wrap">—</span></div>
+          <div class="kv"><span class="k">idca.status:</span> <span id="fr-idca-status" class="wrap">—</span></div>
+          <div class="kv"><span class="k">idca.summary:</span> <span id="fr-idca-summary" class="wrap">—</span></div>
+          <div class="kv"><span class="k">naa.scores:</span> <span id="fr-naa-scores" class="wrap">—</span></div>
+          <div class="kv"><span class="k">doc_gcs_uri:</span> <span id="fr-doc" class="wrap mono">—</span></div>
+          <div id="detail-final" class="panel prejson slim hide"></div>
+        </div>
+
+        <!-- Raw -->
         <h3 style="margin-top:1rem">Raw <code>/debug_state</code></h3>
         <pre id="state-result" class="panel prejson"></pre>
       </section>
 
-      <!-- ========== CPC ========== -->
+      <!-- CPC -->
       <section id="cpc-section">
         <h2>Debug CPC</h2>
         <button id="btn-cpc" type="button">GET /debug/cpc</button>
